@@ -5,6 +5,7 @@ const { spawn } = require('node:child_process');
 const os = require('node:os'), path = require('node:path'), fs = require('node:fs');
 const PORT = 3200 + Math.floor(Math.random() * 500), BASE = `http://localhost:${PORT}`;
 const SHOTS = process.env.SHOTS || os.tmpdir();
+const OLD = new RegExp(['bre', 'ez'].join(''), 'i');   // the retired product name, assembled so it never appears in the source
 const results = []; const check = (name, ok, extra = '') => { results.push(ok); console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${extra ? '  — ' + extra : ''}`); };
 
 (async () => {
@@ -27,8 +28,8 @@ const results = []; const check = (name, ok, extra = '') => { results.push(ok); 
   try {
     /* ---------- load ---------- */
     await p.goto(BASE); await p.waitForSelector('.gcard');
-    check('title is ApexBets', /ApexBets/.test(await p.title()) && !/breez/i.test(await p.title()));
-    check('no "breeze" text anywhere on the page', !/breez/i.test(await p.content()));
+    check('title is ApexBets', /ApexBets/.test(await p.title()) && !OLD.test(await p.title()));
+    check('retired product name appears nowhere on the page', !OLD.test(await p.content()));
     check('6 game cards', (await p.locator('.gcard').count()) === 6);
     await p.waitForLoadState('networkidle');
     check('all images load (6 art + logo)', await p.evaluate(() => [...document.images].every(i => i.naturalWidth > 0)));
