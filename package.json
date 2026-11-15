@@ -1,0 +1,12 @@
+{
+  "name": "apexbets",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Demo South African sportsbook with a Node backend, accounts and a double-entry wallet ledger",
+  "type": "module",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server/server.js",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js"
+  }
+}

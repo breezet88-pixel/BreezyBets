@@ -1,16 +1,32 @@
-# BreezyBets (demo)
+# ApexBets (demo)
 
-A South African–style online sportsbook front end (PSL soccer, URC/Test rugby, SA20 cricket, tennis, basketball).
+A South African–style online sportsbook and games site: six predator-themed **Apex Games** (Lion's Pride, Tiger Stripes,
+Grizzly Gold, Eagle Eye, Wolf Pack, Shark Frenzy) plus a sportsbook (PSL soccer, URC/Test rugby, SA20 cricket, tennis, basketball).
 **Demo only: play money, sample fixtures, simulated odds. No real payments or real bets.**
 
 ## Run
-Open `index.html` in a browser, or `python3 -m http.server` and visit http://localhost:8000.
+Requires Node 22.13+ (zero npm dependencies; uses built-in `node:sqlite`).
+
+```
+npm start          # http://localhost:3000   (PORT, DB_PATH, DEMO_MODE=false, NODE_ENV=production are supported)
+npm test           # API, wallet-ledger and game tests
+```
+
+## Architecture
+- `server/odds.js` – odds engine (sample data). The server decides prices; bets with stale odds get `409 odds_changed`.
+- `server/wallet.js` – **double-entry ledger**: integer cents, every transaction sums to zero, player wallets can't overdraw,
+  and SQLite triggers make the ledger append-only. Balances are derived from the ledger, never stored.
+- `server/auth.js` – scrypt password hashing, random session tokens (only SHA-256 hashes stored), HttpOnly + SameSite=Strict cookies,
+  login/sign-up rate limiting, server-side 18+ check.
+- `server/games.js` – the six games: CSPRNG outcomes, exact RTP (~95%) verified in tests.
+- `server/server.js` – JSON API + static hosting with a strict CSP.
+- `public/` – the browser app (display only; no odds, balances or RNG in the browser).
 
 ## Features
 - Sports menu, live events with simulated score/odds movement, 1X2 / winner / over-under markets
 - Bet slip: singles and multiples, stake presets, potential return, one selection per match in multiples
-- Demo registration with 18+ date-of-birth check, play-money deposits, daily deposit limit
-- My Bets with simulated settlement; state saved in `localStorage`
+- Real accounts (username + password), 18+ check, play-money deposits, daily deposit limit enforced on the server, wallet statement
+- My Bets with simulated settlement (`/api/bets/settle-demo`, disabled when `DEMO_MODE=false`)
 - Responsible-gambling footer and SARGF helpline (0800 006 008)
 - Responsive (mobile bet-slip drawer)
 
