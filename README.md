@@ -8,7 +8,7 @@ Grizzly Gold, Eagle Eye, Wolf Pack, Shark Frenzy) plus a sportsbook (PSL soccer,
 Requires Node 22.13+ (zero npm dependencies; uses built-in `node:sqlite`).
 
 ```
-npm start          # http://localhost:3000   (PORT, DB_PATH, DEMO_MODE=false, NODE_ENV=production are supported)
+npm start          # http://localhost:3000   (PORT, DB_PATH, DEMO_MODE=false, GAMES_ENABLED, NODE_ENV=production are supported)
 npm test           # API, wallet-ledger, game-RTP and hardening tests (no browser needed)
 npm run e2e        # browser end-to-end run (needs Playwright installed: drives every page, all 6 games, bets, deposits, mobile)
 ```
@@ -49,3 +49,6 @@ npm run e2e        # browser end-to-end run (needs Playwright installed: drives 
 ## Cashback / loss-rebate model
 `node tools/cashback-model.mjs [players=2000] [days=300] [keep=0.5]` simulates whole days of play on the six games and shows how large a
 loss-rebate promise can be while the house keeps at least `keep` (default 50%) of each day's gross gaming revenue.
+
+## Payments and going live
+See [`docs/payments.md`](docs/payments.md): chosen provider (Peach Payments, with Stitch as backup), how "all banks" is actually covered, the questions to put to the provider in writing, and the order of work. Casino-style games are demo-only: in real-money mode (`DEMO_MODE=false`) they are switched off unless `GAMES_ENABLED=true` is set deliberately.

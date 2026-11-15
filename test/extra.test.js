@@ -91,3 +91,17 @@ test('sports: settlement win chance keeps the bookmaker margin (deterministic)',
   // the buggy rule (win chance = 1/odds) would give each market a book of ~106% and a 100% return
   const e0 = engine.snapshot()[1].markets[0]; assert.ok(e0.sels.reduce((a, x) => a + 1 / x.odds, 0) > 1.04);
 });
+
+test('casino games are demo-only: off in real-money mode unless explicitly enabled', async () => {
+  const real = await start({ dbPath: ':memory:', demoMode: false }); let c = caller(real.base);
+  assert.deepEqual((await c('GET', '/api/config')).body, { demo: false, games: false });
+  assert.equal((await c('GET', '/api/games')).status, 404);
+  await c('POST', '/api/register', NEW);
+  assert.equal((await c('POST', '/api/games/play', { game: 'lion', stake_cents: 1000 })).status, 404);
+  assert.equal((await c('GET', '/api/me')).body.balance_cents, 100000, 'nothing was charged');
+  const demo = await start({ dbPath: ':memory:' }); c = caller(demo.base);
+  assert.deepEqual((await c('GET', '/api/config')).body, { demo: true, games: true });
+  assert.equal((await c('GET', '/api/games')).status, 200);
+  const forced = await start({ dbPath: ':memory:', demoMode: false, gamesEnabled: true });   // GAMES_ENABLED=true is a deliberate owner decision
+  assert.equal((await caller(forced.base)('GET', '/api/games')).status, 200);
+});

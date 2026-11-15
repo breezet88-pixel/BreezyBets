@@ -18,7 +18,7 @@ const MIN_DEPOSIT = 1000, MAX_DEPOSIT = 500000, WELCOME_BONUS = 100000;
 class HttpError extends Error { constructor(status, code, message) { super(message || code); this.status = status; this.code = code; } }
 const bad = (msg, code = 'bad_request') => new HttpError(400, code, msg);
 
-export function createApp({ dbPath = process.env.DB_PATH || './data/apexbets.db', demoMode = process.env.DEMO_MODE !== 'false', secureCookies = process.env.NODE_ENV === 'production', simulate = true, signupsPerHour = 10 } = {}) {
+export function createApp({ dbPath = process.env.DB_PATH || './data/apexbets.db', demoMode = process.env.DEMO_MODE !== 'false', gamesEnabled = process.env.GAMES_ENABLED ? process.env.GAMES_ENABLED === 'true' : demoMode, secureCookies = process.env.NODE_ENV === 'production', simulate = true, signupsPerHour = 10 } = {}) {
   const db = openDb(dbPath);
   const odds = createOddsEngine();
   const loginLimiter = createLimiter(5, 15 * 60e3), signupLimiter = createLimiter(signupsPerHour, 60 * 60e3);
@@ -76,6 +76,7 @@ export function createApp({ dbPath = process.env.DB_PATH || './data/apexbets.db'
 
     'POST /api/logout': ({ token }) => { if (token) destroySession(db, token); return [200, { ok: true }, { 'Set-Cookie': cookieHeader('', 0) }]; },
     'GET /api/me': ({ user }) => [200, user ? me(user) : { user: null }],
+    'GET /api/config': () => [200, { demo: demoMode, games: gamesEnabled }],
     'GET /api/events': () => [200, { events: odds.snapshot() }],
 
     'POST /api/deposit': ({ user, body }) => {
@@ -163,9 +164,13 @@ export function createApp({ dbPath = process.env.DB_PATH || './data/apexbets.db'
       })];
     },
 
-    'GET /api/games': () => [200, { games: GAMES.map(publicGame), min_stake_cents: MIN_GAME_STAKE, max_stake_cents: MAX_GAME_STAKE }],
+    'GET /api/games': () => {
+      if (!gamesEnabled) throw new HttpError(404, 'not_found', 'Not found');   // casino-style games are not offered in real-money mode
+      return [200, { games: GAMES.map(publicGame), min_stake_cents: MIN_GAME_STAKE, max_stake_cents: MAX_GAME_STAKE }];
+    },
 
     'POST /api/games/play': ({ user, body }) => {
+      if (!gamesEnabled) throw new HttpError(404, 'not_found', 'Not found');
       need(user);
       const g = gameById(body.game); if (!g) throw bad('Unknown game', 'unknown_game');
       const stake = money(body.stake_cents, MIN_GAME_STAKE, MAX_GAME_STAKE, 'Stake');

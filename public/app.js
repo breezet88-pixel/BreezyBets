@@ -16,6 +16,7 @@ const SPORTS = [
 ];
 
 /* ---------- state ---------- */
+let config = { demo: true, games: true };                           // what this server offers (real-money mode has no casino games)
 let events = [], prevOdds = {}, me = null, bets = [], games = [], gameLimits = { min: 100, max: 50000 };
 const ui = { view: 'sports', sport: 'soccer', betsTab: 'open', slip: [], mode: 'multi', stake: DEFAULT_STAKE, slipOpen: false, busy: false, msg: null, receipt: null };
 let lastFocus = null;
@@ -66,6 +67,7 @@ function renderAcct() {
 }
 function renderNav() {
   $$('#mainNav a').forEach(a => a.dataset.nav === ui.view ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current'));
+  $('#mainNav a[data-nav=games]').hidden = !config.games;
   const sportsLink = $('#mainNav a[data-nav=sports]'); sportsLink.setAttribute('href', `#/sports/${ui.sport}`);   // "Sports" returns to your last sport
   const open = bets.filter(b => b.status === 'open').length, badge = $('#openBadge');
   badge.hidden = !(me && open); badge.textContent = open;
@@ -323,7 +325,7 @@ async function spin() {
 function parseHash() {
   const [a, b] = location.hash.replace(/^#\/?/, '').split('/');
   if (a === 'my-bets') return { view: 'mybets' };
-  if (a === 'games') return { view: 'games' };
+  if (a === 'games' && config.games) return { view: 'games' };
   if (a === 'sports' && (b === 'live' || SPORTS.some(s => s.id === b))) return { view: 'sports', sport: b };
   return { view: 'sports', sport: 'soccer' };
 }
@@ -383,7 +385,8 @@ document.addEventListener('submit', async e => {
 
 /* ---------- boot ---------- */
 (async () => {
-  const [m] = await Promise.all([api('GET', '/me'), loadEvents(), loadGames()]);
+  const c = await api('GET', '/config'); if (c.ok) config = c.data;
+  const [m] = await Promise.all([api('GET', '/me'), loadEvents(), config.games ? loadGames() : null]);
   setMe(m.data); await loadBets();
   if (!location.hash) history.replaceState(null, '', '#/sports/soccer');
   const r = parseHash(); ui.view = r.view; if (r.sport) ui.sport = r.sport;

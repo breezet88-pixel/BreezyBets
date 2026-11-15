@@ -182,6 +182,17 @@ const results = []; const check = (name, ok, extra = '') => { results.push(ok); 
     await p.evaluate(() => (location.hash = '#/games')); await p.waitForSelector('.gcard'); await click('[data-game=eagle]');
     check('phone: game dialog fits the screen', await p.evaluate(() => { const r = document.querySelector('#modalCard').getBoundingClientRect(); return r.width <= innerWidth && r.left >= 0 && r.bottom <= innerHeight; }));
     await click('#modal [data-act=close]');
+
+    /* ---------- real-money mode: no casino games ---------- */
+    const PORT2 = PORT + 1000;
+    const srv2 = spawn('node', ['--disable-warning=ExperimentalWarning', path.join(__dirname, '../server/server.js')], { env: { ...process.env, PORT: PORT2, DB_PATH: path.join(dir, 'real.db'), DEMO_MODE: 'false' }, stdio: 'ignore' });
+    await new Promise(r => setTimeout(r, 1500));
+    try {
+      const p2 = await ctx.newPage(); await p2.setViewportSize({ width: 1280, height: 900 });
+      await p2.goto(`http://localhost:${PORT2}/#/games`); await p2.waitForSelector('.ev');
+      check('real-money mode: Games is not offered (2 nav items; #/games falls back to Sports)', (await p2.$$eval('#mainNav a:not([hidden]) > span', a => a.map(x => x.textContent.trim()))).join('|') === 'Sports|My Bets' && /Soccer|Sports/.test(await p2.textContent('h1')));
+      await p2.close();
+    } finally { srv2.kill(); }
   } catch (e) { check('script completed without exception', false, e.message.split('\n')[0]); await p.screenshot({ path: path.join(SHOTS, 'failure.png') }).catch(() => {}); }
 
   check('no console errors / CSP violations / failed requests', problems.length === 0, problems.slice(0, 3).join(' | '));
