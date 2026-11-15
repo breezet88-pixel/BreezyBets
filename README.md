@@ -23,13 +23,20 @@ npm run e2e        # browser end-to-end run (needs Playwright installed: drives 
 - `server/server.js` – JSON API + static hosting with a strict CSP.
 - `public/` – the browser app (display only; no odds, balances or RNG in the browser).
 
+## How the site is organised (kept deliberately simple)
+- **Three places to go:** Sports, My Bets, Games – a top bar on desktop, a bottom bar on phones. The address (`#/sports/soccer`, `#/my-bets`, `#/games`) always says where you are and the Back button works.
+- **One path to a bet:** pick a sport tab → tap a price (1 / X / 2) → type a stake → *Place bet*. Matches show only their main market.
+- **The bet slip stays out of the way:** it appears beside the matches (desktop) or as a bar that only shows once you've picked something (phone). One pick = a single; two or more default to a Multiple, with one switch to Singles.
+- **No surprises:** a finished bet shows a clear confirmation with *View my bets*; problems (minimum stake, low balance, changed prices) appear on the slip itself with the fix next to them; a new bet always starts from the default R50 stake.
+- Prices, clocks and scores refresh **in place**, so the price under your finger never moves or disappears mid-tap.
+
 ## Features
 - Sports menu, live events with simulated score/odds movement, 1X2 / winner / over-under markets
 - Bet slip: singles and multiples, stake presets, potential return, one selection per match in multiples
 - Real accounts (username + password), 18+ check, play-money deposits, daily deposit limit enforced on the server, wallet statement
 - My Bets with simulated settlement (`/api/bets/settle-demo`, disabled when `DEMO_MODE=false`)
 - Responsible-gambling footer and SARGF helpline (0800 006 008)
-- Responsive (mobile bet-slip drawer)
+- Responsive: phone layout with bottom navigation and a bet-slip sheet
 
 ## Going to production: what a real site needs
 1. **Licence**: operate only with a provincial gambling board bookmaker licence (National Gambling Act); geo-block/age-gate accordingly.

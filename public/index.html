@@ -3,45 +3,41 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ApexBets – Sports Betting &amp; Games Demo (South Africa)</title>
-<meta name="description" content="ApexBets demo: Apex Games, PSL, URC rugby, SA20 cricket and more. Play-money demo only. 18+.">
+<title>ApexBets – Sports Betting (Demo)</title>
+<meta name="description" content="ApexBets demo sportsbook: pick a sport, tap a price, place your bet. Play money only. 18+.">
 <link rel="icon" href="logo.svg" type="image/svg+xml">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<div class="demo-bar">DEMO ONLY – play money, sample fixtures. No real bets or payments. 18+</div>
+<div class="demo-bar">DEMO – play money only, sample matches · 18+</div>
 
 <header class="top">
-  <a class="logo" href="/" aria-label="ApexBets home"><img src="logo.svg" alt="" width="30" height="27"><span class="lt">Apex<span>Bets</span></span></a>
-  <nav class="main-nav" id="mainNav">
-    <button data-view="games" class="active">Games</button>
-    <button data-view="sports">Sports</button>
-    <button data-view="live">Live <i class="dot"></i></button>
-    <button data-view="mybets">My Bets</button>
+  <a class="logo" href="#/sports/soccer" aria-label="ApexBets home"><img src="logo.svg" alt="" width="30" height="27"><span class="lt">Apex<span>Bets</span></span></a>
+  <nav class="main-nav" id="mainNav" aria-label="Main">
+    <a href="#/sports/soccer" data-nav="sports"><i aria-hidden="true">⚽</i><span>Sports</span></a>
+    <a href="#/my-bets" data-nav="mybets"><i aria-hidden="true">🧾</i><span>My Bets</span><b class="badge" id="openBadge" hidden></b></a>
+    <a href="#/games" data-nav="games"><i aria-hidden="true">🐾</i><span>Games</span></a>
   </nav>
   <div class="acct" id="acct"></div>
 </header>
 
 <div class="layout">
-  <aside class="side" id="side" aria-label="Sports"></aside>
-
-  <main class="content" id="content" aria-live="polite"></main>
-
+  <main class="content" id="content"></main>
   <aside class="slip" id="slip" aria-label="Bet slip"></aside>
 </div>
 
-<button class="slip-fab" id="slipFab" aria-label="Open bet slip">Bet Slip <b id="slipCount">0</b></button>
+<div class="scrim" id="scrim" hidden></div>
+<button class="slipbar" id="slipBar" data-act="openSlip" hidden><span>Bet slip <b id="slipCount">0</b></span><span id="slipBarInfo"></span></button>
 
 <footer class="foot">
-  <p><strong>18+ | Gambling can be addictive. Play responsibly.</strong>
-  South African Responsible Gambling Foundation helpline: <strong>0800 006 008</strong> (toll-free).</p>
-  <p>ApexBets is a demonstration project. A real operator in South Africa must hold a licence from the relevant provincial
-  gambling board (e.g. WCGRB, GGB, KZNGBB) under the National Gambling Act, and must meet FICA/KYC requirements.
-  Winnings of real bookmakers are taxed per SARS rules; none of that applies here.</p>
+  <p><strong>18+ · Gambling can be addictive. Play responsibly.</strong>
+  Helpline (toll-free): <strong>0800 006 008</strong> · <button class="linkbtn" data-act="limits">Responsible gambling</button></p>
+  <p>ApexBets is a demonstration project with play money. A real operator in South Africa must hold a provincial gambling board
+  licence and meet FICA/KYC requirements.</p>
 </footer>
 
 <div class="modal" id="modal" hidden>
-  <div class="modal-card" role="dialog" aria-modal="true" id="modalCard"></div>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="mTitle" id="modalCard"></div>
 </div>
 <div class="toast" id="toast" role="status"></div>
 
