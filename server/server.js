@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { gzipSync } from 'node:zlib';
 import { readFile } from 'node:fs/promises';
 import { resolve, extname, join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -200,10 +201,19 @@ export function createApp({ dbPath = process.env.DB_PATH || './data/apexbets.db'
     'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
     'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin', 'X-Frame-Options': 'DENY',
   };
+  // Text responses are gzipped when the browser accepts it. Live odds polling is the site's main data cost
+  // for a bettor on prepaid data, and compression cuts it by roughly 80%. Images are already compressed.
+  const COMPRESSIBLE = /^(application\/json|text\/|image\/svg)/;
   const send = (res, status, body, headers = {}) => {
     const isJson = typeof body !== 'string' && !Buffer.isBuffer(body);
-    res.writeHead(status, { ...SECURITY, 'Cache-Control': 'no-store', ...(isJson ? { 'Content-Type': 'application/json' } : {}), ...headers });
-    res.end(isJson ? JSON.stringify(body) : body);
+    const head = { ...SECURITY, 'Cache-Control': 'no-store', ...(isJson ? { 'Content-Type': 'application/json' } : {}), ...headers };
+    let payload = isJson ? JSON.stringify(body) : body;
+    if (COMPRESSIBLE.test(head['Content-Type'] || '')) {
+      head.Vary = 'Accept-Encoding';
+      if (res.gzipOk && Buffer.byteLength(payload) >= 512) { payload = gzipSync(payload); head['Content-Encoding'] = 'gzip'; }
+    }
+    res.writeHead(status, head);
+    res.end(payload);
   };
   const readBody = req => new Promise((ok, fail) => {
     let size = 0; const chunks = [];
@@ -225,6 +235,7 @@ export function createApp({ dbPath = process.env.DB_PATH || './data/apexbets.db'
   }
 
   const server = http.createServer(async (req, res) => {
+    res.gzipOk = /\bgzip\b/.test(req.headers['accept-encoding'] || '');
     try {
       const url = new URL(req.url, 'http://x');
       if (!url.pathname.startsWith('/api/')) {

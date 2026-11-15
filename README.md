@@ -20,7 +20,7 @@ npm run e2e        # browser end-to-end run (needs Playwright installed: drives 
 - `server/auth.js` – scrypt password hashing, random session tokens (only SHA-256 hashes stored), HttpOnly + SameSite=Strict cookies,
   login/sign-up rate limiting, server-side 18+ check.
 - `server/games.js` – the six games: CSPRNG outcomes, exact RTP (~95%) verified in tests.
-- `server/server.js` – JSON API + static hosting with a strict CSP.
+- `server/server.js` – JSON API + static hosting with a strict CSP; text responses are gzipped (first visit about 18 KB, an hour of live odds about 1 MB).
 - `public/` – the browser app (display only; no odds, balances or RNG in the browser).
 
 ## How the site is organised (kept deliberately simple)
@@ -52,3 +52,6 @@ loss-rebate promise can be while the house keeps at least `keep` (default 50%) o
 
 ## Payments and going live
 See [`docs/payments.md`](docs/payments.md): chosen provider (Peach Payments, with Stitch as backup), how "all banks" is actually covered, the questions to put to the provider in writing, and the order of work. Casino-style games are demo-only: in real-money mode (`DEMO_MODE=false`) they are switched off unless `GAMES_ENABLED=true` is set deliberately.
+
+## Competitive research
+See [`docs/competitive-analysis.md`](docs/competitive-analysis.md): the South African market, what rivals already do, the gaps where a newcomer can be better, where we are at a disadvantage, and what a real licensed launch requires.

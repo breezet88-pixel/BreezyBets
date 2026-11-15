@@ -1,5 +1,6 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
+import http from 'node:http';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -15,6 +16,29 @@ const caller = base => { let cookie = ''; return async (method, path, body) => {
   const sc = r.headers.get('set-cookie'); if (sc) cookie = sc.split(';')[0];
   return { status: r.status, body: await r.json().catch(() => null) }; }; };
 const NEW = { username: 'Tester', password: 'correct horse', dob: '1990-01-01', terms: true };
+
+test('data-light: text responses are gzipped on request, images are not, and the content is unchanged', async () => {
+  const { base } = await start({ dbPath: ':memory:' });
+  // raw bytes on the wire (fetch would hide the compression by decoding it)
+  const wire = (path, enc) => new Promise((ok, fail) => http.get(base + path, { headers: { 'Accept-Encoding': enc } }, r => {
+    let n = 0; r.on('data', c => (n += c.length)); r.on('end', () => ok({ bytes: n, enc: r.headers['content-encoding'], vary: r.headers.vary }));
+  }).on('error', fail));
+  for (const path of ['/api/events', '/app.js', '/styles.css', '/']) {
+    const gz = await wire(path, 'gzip'), plain = await wire(path, 'identity');
+    assert.equal(gz.enc, 'gzip', `${path} compressed`); assert.equal(plain.enc, undefined, `${path} stays plain for clients that do not accept gzip`);
+    assert.equal(gz.vary, 'Accept-Encoding');
+    assert.ok(gz.bytes < plain.bytes * 0.55, `${path}: ${plain.bytes} -> ${gz.bytes} bytes`);
+  }
+  const odds = { gz: await wire('/api/events', 'gzip'), plain: await wire('/api/events', 'identity') };
+  console.log(`# live odds refresh: ${odds.plain.bytes} -> ${odds.gz.bytes} bytes (${Math.round(100 - 100 * odds.gz.bytes / odds.plain.bytes)}% less); at one refresh per 5s that is ${(odds.plain.bytes * 720 / 1e6).toFixed(1)} -> ${(odds.gz.bytes * 720 / 1e6).toFixed(1)} MB per hour`);
+  assert.ok(odds.gz.bytes < odds.plain.bytes / 4, 'live odds shrink by at least 75%');
+  assert.equal((await wire('/img/lion.png', 'gzip')).enc, undefined, 'PNG is already compressed');
+  assert.equal((await wire('/api/config', 'gzip')).enc, undefined, 'tiny responses are not worth compressing');
+  // same content either way
+  const a = await (await fetch(base + '/api/games', { headers: { 'Accept-Encoding': 'gzip' } })).json();
+  const b = await (await fetch(base + '/api/games', { headers: { 'Accept-Encoding': 'identity' } })).json();
+  assert.deepEqual(a, b); assert.equal(a.games.length, 6);
+});
 
 test('DEMO_MODE=false disables deposits and simulated settlement', async () => {
   const { app, base } = await start({ dbPath: ':memory:', demoMode: false }); const c = caller(base);
