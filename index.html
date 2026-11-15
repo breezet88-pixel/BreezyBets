@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en-ZA">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BreezyBets – Sports Betting Demo (South Africa)</title>
+<meta name="description" content="BreezyBets demo sportsbook: PSL, URC rugby, SA20 cricket and more. Play-money demo only. 18+.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="demo-bar">DEMO ONLY – play money, sample fixtures. No real bets or payments. 18+</div>
+
+<header class="top">
+  <a class="logo" href="#" aria-label="BreezyBets home">Breezy<span>Bets</span></a>
+  <nav class="main-nav" id="mainNav">
+    <button data-view="sports" class="active">Sports</button>
+    <button data-view="live">Live <i class="dot"></i></button>
+    <button data-view="mybets">My Bets</button>
+  </nav>
+  <div class="acct" id="acct"></div>
+</header>
+
+<div class="layout">
+  <aside class="side" id="side" aria-label="Sports"></aside>
+
+  <main class="content" id="content" aria-live="polite"></main>
+
+  <aside class="slip" id="slip" aria-label="Bet slip"></aside>
+</div>
+
+<button class="slip-fab" id="slipFab" aria-label="Open bet slip">Bet Slip <b id="slipCount">0</b></button>
+
+<footer class="foot">
+  <p><strong>18+ | Gambling can be addictive. Play responsibly.</strong>
+  South African Responsible Gambling Foundation helpline: <strong>0800 006 008</strong> (toll-free).</p>
+  <p>BreezyBets is a demonstration project. A real operator in South Africa must hold a licence from the relevant provincial
+  gambling board (e.g. WCGRB, GGB, KZNGBB) under the National Gambling Act, and must meet FICA/KYC requirements.
+  Winnings of real bookmakers are taxed per SARS rules; none of that applies here.</p>
+</footer>
+
+<div class="modal" id="modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" id="modalCard"></div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
