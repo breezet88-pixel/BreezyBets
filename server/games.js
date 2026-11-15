@@ -52,4 +52,4 @@ export function rtp(g) {
 }
 
 export const publicGame = g => ({ id: g.id, name: g.name, animal: g.animal, tagline: g.tagline, volatility: g.volatility,
-  symbols: g.symbols, image: `/img/${g.id}.jpg`, rtp: Math.round(rtp(g).rtp * 1000) / 10, pay3: g.pay3, pay2: g.pay2, pay1: g.pay1 });
+  symbols: g.symbols, image: `/img/${g.id}.png`, rtp: Math.round(rtp(g).rtp * 1000) / 10, pay3: g.pay3, pay2: g.pay2, pay1: g.pay1 });

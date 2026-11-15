@@ -85,7 +85,7 @@ function renderContent() {
 function renderGames() {
   return `<div class="hero"><div><h2>🐾 Apex Games</h2><p>Six predator-themed instant games. Every spin is decided on the server. Play money only.</p></div>
       ${me ? '' : '<button class="btn primary" data-act="join">Join &amp; get R1 000 demo credit</button>'}</div>
-    <div class="games-grid">${games.map(g => `<button class="gcard" data-game="${g.id}"><img src="${g.image}" alt="${esc(g.name)}" width="232" height="230">
+    <div class="games-grid">${games.map(g => `<button class="gcard" data-game="${g.id}"><img src="${g.image}" alt="${esc(g.name)}" width="256" height="256">
       <div class="gb"><h3>${esc(g.name)}</h3><p>${esc(g.tagline)}</p>
       <div class="chips"><span class="chip ${g.volatility === 'Low' ? 'lo' : g.volatility === 'High' ? 'hi' : ''}">${esc(g.volatility)} volatility</span><span class="chip">RTP ${g.rtp}%</span></div></div></button>`).join('')}</div>`;
 }
