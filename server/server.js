@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve, extname, join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDb, tx } from './db.js';
-import { createOddsEngine } from './odds.js';
+import { createOddsEngine, winProbability } from './odds.js';
 import { WalletError, balance, userAccount, credit, debit, post, depositedToday } from './wallet.js';
 import { GAMES, gameById, publicGame, spin, evaluate } from './games.js';
 import { hashPassword, verifyPassword, createSession, userForToken, destroySession, ageFromDob, createLimiter, SESSION_TTL_MS } from './auth.js';
@@ -152,7 +152,7 @@ export function createApp({ dbPath = process.env.DB_PATH || './data/apexbets.db'
           const legs = db.prepare('SELECT * FROM bet_legs WHERE bet_id=?').all(b.id);
           let all = true;
           for (const l of legs) {
-            const r = Math.random() < 1 / l.odds; all &&= r;
+            const r = Math.random() < winProbability(l.odds); all &&= r;   // not 1/odds: that would give the house no edge
             db.prepare('UPDATE bet_legs SET result=? WHERE id=?').run(r ? 'won' : 'lost', l.id);
           }
           const payout = all ? Math.floor(b.stake_cents * b.odds) : 0;

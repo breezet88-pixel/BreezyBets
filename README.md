@@ -38,3 +38,7 @@ npm run e2e        # browser end-to-end run (needs Playwright installed: drives 
 4. **Odds & results**: licensed data feed (e.g. Sportradar, Betradar, Genius) plus a trading/risk engine.
 5. **Payments**: PCI-compliant provider (EFT, cards, Ozow, vouchers), withdrawals, fraud checks.
 6. **Compliance**: tax handling, responsible-gambling tools (limits, cool-off, reality checks), data protection (POPIA).
+
+## Cashback / loss-rebate model
+`node tools/cashback-model.mjs [players=2000] [days=300] [keep=0.5]` simulates whole days of play on the six games and shows how large a
+loss-rebate promise can be while the house keeps at least `keep` (default 50%) of each day's gross gaming revenue.

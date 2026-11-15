@@ -78,3 +78,16 @@ test('input hardening: oversized/invalid bodies, wrong methods, unknown routes',
   assert.equal(sqli.status, 401);
   app.server.close();
 });
+
+test('sports: settlement win chance keeps the bookmaker margin (deterministic)', async () => {
+  const { createOddsEngine, winProbability } = await import('../server/odds.js');
+  const engine = createOddsEngine();
+  for (const e of engine.snapshot()) for (const m of e.markets) {
+    const probs = m.sels.map(x => winProbability(x.odds));
+    const total = probs.reduce((a, b) => a + b, 0);
+    assert.ok(Math.abs(total - 1) < 0.02, `${e.home} v ${e.away} ${m.name}: probabilities sum to ${total}`);       // a real market sums to ~100%
+    for (const x of m.sels) assert.ok(Math.abs(winProbability(x.odds) * x.odds - 1 / 1.06) < 1e-9, 'every price returns ~94.3%');
+  }
+  // the buggy rule (win chance = 1/odds) would give each market a book of ~106% and a 100% return
+  const e0 = engine.snapshot()[1].markets[0]; assert.ok(e0.sels.reduce((a, x) => a + 1 / x.odds, 0) > 1.04);
+});

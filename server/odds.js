@@ -1,6 +1,8 @@
 // Server-side odds engine (sample data + simulated movement).
 // In production this is replaced by a licensed odds/results feed and a trading/risk engine.
-const MARGIN = 0.06;
+export const MARGIN = 0.06;
+// True win chance behind a displayed price. Odds contain the margin, so 1/odds over-states it by (1+MARGIN).
+export const winProbability = odds => 1 / (odds * (1 + MARGIN));
 export const oddsFrom = p => Math.max(1.01, Math.round(100 / (p * (1 + MARGIN))) / 100);
 
 const RAW = [
