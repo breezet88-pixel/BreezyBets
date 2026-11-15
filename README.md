@@ -9,7 +9,8 @@ Requires Node 22.13+ (zero npm dependencies; uses built-in `node:sqlite`).
 
 ```
 npm start          # http://localhost:3000   (PORT, DB_PATH, DEMO_MODE=false, NODE_ENV=production are supported)
-npm test           # API, wallet-ledger and game tests
+npm test           # API, wallet-ledger, game-RTP and hardening tests (no browser needed)
+npm run e2e        # browser end-to-end run (needs Playwright installed: drives every page, all 6 games, bets, deposits, mobile)
 ```
 
 ## Architecture

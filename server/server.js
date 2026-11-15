@@ -202,8 +202,9 @@ export function createApp({ dbPath = process.env.DB_PATH || './data/apexbets.db'
   };
   const readBody = req => new Promise((ok, fail) => {
     let size = 0; const chunks = [];
-    req.on('data', c => { size += c.length; if (size > 16_384) { fail(new HttpError(413, 'too_large')); req.destroy(); } else chunks.push(c); });
-    req.on('end', () => { try { ok(chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {}); } catch { fail(bad('Invalid JSON')); } });
+    let tooBig = false;
+    req.on('data', c => { if (tooBig) return; size += c.length; if (size > 16_384) { tooBig = true; chunks.length = 0; fail(new HttpError(413, 'too_large', 'Request too large')); } else chunks.push(c); });
+    req.on('end', () => { if (tooBig) return; try { ok(chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {}); } catch { fail(bad('Invalid JSON')); } });
     req.on('error', fail);
   });
   const parseCookies = h => Object.fromEntries((h || '').split(';').map(c => c.trim().split(/=(.*)/s).slice(0, 2)).filter(p => p[0]));
@@ -238,12 +239,13 @@ export function createApp({ dbPath = process.env.DB_PATH || './data/apexbets.db'
       const [status, payload, headers] = await handler({ body, token, user: userForToken(db, token), ip: req.socket.remoteAddress });
       send(res, status, payload, headers);
     } catch (e) {
-      if (e instanceof HttpError) return send(res, e.status, { error: e.code, message: e.message });
+      if (e instanceof HttpError) return send(res, e.status, { error: e.code, message: e.message }, e.status === 413 ? { Connection: 'close' } : {});
       if (e instanceof WalletError) return send(res, e.code === 'insufficient_funds' ? 422 : 500, { error: e.code, message: e.message });
       console.error(e); send(res, 500, { error: 'server_error', message: 'Something went wrong' });
     }
   });
-  server.on('close', () => { clearInterval(ticker); db.close(); });
+  let closed = false;                                      // 'close' can fire twice if close() is called twice
+  server.on('close', () => { if (closed) return; closed = true; clearInterval(ticker); db.close(); });
   return { server, db, odds };
 }
 
