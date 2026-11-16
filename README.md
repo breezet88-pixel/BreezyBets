@@ -78,3 +78,6 @@ See [`docs/competitive-analysis.md`](docs/competitive-analysis.md): the South Af
 
 ## Hosting
 See [`docs/hosting.md`](docs/hosting.md): Fly.io in Johannesburg, with a `Dockerfile`, `fly.toml` and a GitHub Actions workflow that tests and deploys on every push once a `FLY_API_TOKEN` secret is added.
+
+## Licence
+See [`docs/licence.md`](docs/licence.md): the routes to a bookmaker licence, what the Western Cape board asks for, the risks, the order of work, and an email to send to the board.
