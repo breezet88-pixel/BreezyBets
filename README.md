@@ -22,7 +22,7 @@ npm run e2e        # browser end-to-end run (needs Playwright installed: drives 
 - `server/games.js` – the six games: CSPRNG outcomes, exact RTP (~95%) verified in tests.
 - `server/safety.js` – player protection: limit changes with a cooling-off period, breaks, the monthly statement, and the play-through rule.
 - `server/withdrawals.js` – bank account, automatic approval rules, ledger movements and the simulated bank. The header comment says exactly what a real payment provider replaces.
-- `server/server.js` – JSON API + static hosting with a strict CSP; text responses are gzipped (first visit about 18 KB, an hour of live odds about 1 MB).
+- `server/server.js` – JSON API + static hosting with a strict CSP; text responses are gzipped. Measured on the wire with headers included, a first visit is about 33 KB and an hour of live odds about 1.7 MB.
 - `public/` – the browser app (display only; no odds, balances or RNG in the browser).
 
 ## How the site is organised (kept deliberately simple)
@@ -42,6 +42,8 @@ npm run e2e        # browser end-to-end run (needs Playwright installed: drives 
   - lowering a limit applies at once, raising or removing it waits 24 hours (`LIMIT_COOLOFF_HOURS`) and can be cancelled;
   - a break of 24 hours, 7 days or 30 days pauses deposits, bets and games, cannot be ended early, and is shown on every page;
   - **My spending**: a plain monthly statement (staked, got back, deposited, withdrawn, "you are down/up R…") read straight from the ledger.
+- **Sharing a bet:** the picks on a slip, a bet just placed, or any open bet can be shared as a link (`/?bet=…`) by WhatsApp or by copying it.
+  Opening the link puts the same picks on the visitor's own slip at current prices; nothing is placed for them, and no name or stake travels with the link.
 - **Withdrawals with a live tracker** (see `server/withdrawals.js`; the bank side is simulated until a payment provider is connected):
   - one bank account per player, only its last four digits stored, locked while a payout is in progress;
   - money put in must be bet once before it can be withdrawn; winnings always can; the screen shows exactly how much is available and why;

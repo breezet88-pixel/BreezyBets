@@ -60,15 +60,17 @@ Two consequences. Fast payout on its own is no longer unique. And we will need a
 ### 4.3 Simplest and lightest (moderate)
 
 - **Evidence.** Most bettors are low spenders on phones. Reviewers describe Hollywoodbets as cluttered, though this comes from [a blog](https://thetopbettingsites.blogspot.com/2025/11/betway-vs-hollywoodbets-which-south.html) and is weak evidence. Rival apps are downloads of roughly 18 to 78 MB according to affiliate guides that disagree with each other ([Hollywoodbets](https://www.afrik-foot.com/en-za/hollywoodbets-app-download), [Betway](https://www.goal.com/en-za/betting/betway-app/blt62424de78831c429)).
-- **Our numbers, measured on this code on 15 November 2026.**
+- **Our numbers, measured on this code on 16 November 2026.** Everything that crosses the network is counted, in both directions, including the headers that travel with each request.
 
-| | Before | Now |
+| | Without compression | Now |
 |---|---|---|
-| First visit, whole site | 60 KB | 18 KB |
-| One hour of live odds | 6.0 MB | 1.0 MB |
+| First visit, whole site | about 95 KB | about 33 KB |
+| One hour of live odds | about 6.7 MB | about 1.7 MB |
 
 The improvement came from switching on compression, which the server was not using. No app download is needed.
-- **What we would do next.** Refresh only the sport on screen and refresh less often when nothing is live, aiming for under 0.3 MB an hour. A light site also makes a zero-rating deal cheaper, because the operator pays for the data.
+
+**Correction.** An earlier version of this table gave 18 KB and 1.0 MB. Those figures counted the content only and left out the headers, and the site has grown since. A live-odds refresh is 2.3 KB on the wire, of which 1.3 KB is odds and 1.0 KB is headers.
+- **What we would do next.** Headers are now more than 40% of every refresh, so the next saving comes from asking less often, not from smaller answers. Refresh only what is on screen, refresh less often when nothing is live, and send fewer headers, aiming for under 0.3 MB an hour. A light site also makes a zero-rating deal cheaper, because the operator pays for the data.
 - **Caution.** I could not measure rival sites from here, so the comparison is against their apps, not their mobile sites.
 
 ### 4.4 Your language (promising, unverified)
@@ -118,9 +120,9 @@ The improvement came from switching on compression, which the server was not usi
 | 2 | Withdrawal flow with automatic approval rules and a live tracker | 4.1 | **Built**, with a simulated bank until a payment provider is signed |
 | 3 | Lighter live odds, aiming for under 0.3 MB an hour | 4.3 | Nothing |
 | 4 | Language switch | 4.4 | Native-speaker review |
-| 5 | Share a bet by WhatsApp link | Table stakes | Nothing |
+| 5 | Share a bet by WhatsApp link | Table stakes | Nothing. **Built.** |
 
-**Status, 16 November 2026:** builds 1 and 2 are done and tested. Two things from section 4.1 are deliberately not built yet: identity verification against Home Affairs (needs a verification provider) and compensation for a late payout (a business decision best made once real payout times are known).
+**Status, 16 November 2026:** builds 1, 2 and 5 are done and tested. Sharing a bet carries no reward for the sharer; Betway is reported to pay one, and adding it here is a marketing and compliance decision, not a technical one. Two things from section 4.1 are deliberately not built yet: identity verification against Home Affairs (needs a verification provider) and compensation for a late payout (a business decision best made once real payout times are known).
 
 In parallel, outside the code: start the Western Cape licence application, send the provider email in `docs/payments.md`, and ask three platform suppliers for quotes.
 

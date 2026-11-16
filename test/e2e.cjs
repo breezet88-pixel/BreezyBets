@@ -12,7 +12,7 @@ const results = []; const check = (name, ok, extra = '') => { results.push(ok); 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ab-e2e-'));
   const srv = spawn('node', ['--disable-warning=ExperimentalWarning', path.join(__dirname, '../server/server.js')], { env: { ...process.env, PORT, DB_PATH: path.join(dir, 'e2e.db'), AUTO_APPROVE_MAX_CENTS: '20000', PAYOUT_SEND_MS: '600', PAYOUT_PAID_MS: '1200' }, stdio: 'ignore' });
   await new Promise(r => setTimeout(r, 1500));
-  const browser = await chromium.launch(); const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } }); const p = await ctx.newPage();
+  const browser = await chromium.launch(); const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } }); await ctx.grantPermissions(['clipboard-read', 'clipboard-write']); const p = await ctx.newPage();
   const problems = []; p.on('pageerror', e => problems.push('pageerror: ' + e.message));
   // Chrome logs every 4xx API reply as a console error; the test provokes some on purpose, so ignore only those.
   p.on('console', m => { const t = m.text(); if (/status of (400|401|403|409|422)/.test(t)) return; if (m.type() === 'error' || /Content Security Policy/i.test(t)) problems.push('console: ' + t); });
@@ -107,6 +107,35 @@ const results = []; const check = (name, ok, extra = '') => { results.push(ok); 
     await odd(0, 1).click(); check('another price in the same match replaces the first (still 2 picks)', (await p.locator('#slip .pick').count()) === 2);
     await tab('rugby'); check('slip is kept while browsing other sports', (await p.locator('#slip .pick').count()) === 2);
     await tab('cricket');
+
+    /* ---------- sharing a bet ---------- */
+    const pickedCode = pg => pg.$$eval('.odd.sel', els => els.map(e => `${e.dataset.ev}-${e.dataset.mk}-${e.dataset.k}`).join('_'));
+    await click('#slip [data-act=shareSlip]'); await p.waitForSelector('#waShare');
+    const code = await pickedCode(p), shareUrl = await p.inputValue('#shareLink'), waHref = await p.getAttribute('#waShare', 'href'), wa = decodeURIComponent(waHref.split('text=')[1]);
+    check('share: the slip becomes a link that carries exactly these picks', shareUrl === `${BASE}/?bet=${code}` && code.split('_').length === 2 && (await p.locator('.share-list li').count()) === 2, shareUrl);
+    check('share: the WhatsApp button carries a readable message with the link, and no name or stake', waHref.startsWith('https://wa.me/?text=') && wa.includes(shareUrl) && /^My 2 ApexBets picks: /.test(wa) && /18\+ only\.$/.test(wa) && !/Hunter|R\d/.test(wa), wa);
+    await clearToast(); await click('[data-act=copyShare]'); await toast(/copied/);
+    check('share: "Copy link" puts the link on the clipboard', (await p.evaluate(() => navigator.clipboard.readText())) === shareUrl);
+    await click('#modal [data-act=close]');
+    check('share: sharing changes nothing on the slip', (await p.locator('#slip .pick').count()) === 2 && (await pickedCode(p)) === code);
+
+    const ctxB = await browser.newContext({ viewport: { width: 390, height: 800 } }); const q = await ctxB.newPage();     // a friend opening the link on a phone
+    q.on('pageerror', e => problems.push('pageerror (visitor): ' + e.message));
+    q.on('console', m => { const t = m.text(); if ((m.type() === 'error' && !/status of (400|401|403|409|422)/.test(t)) || /Content Security Policy/i.test(t)) problems.push('console (visitor): ' + t); });
+    await q.goto(shareUrl); await q.waitForSelector('#slip .pick');
+    check('shared link: the same picks arrive on the visitor\'s slip, highlighted in the list', (await q.locator('#slip .pick').count()) === 2 && (await pickedCode(q)) === code);
+    check('shared link: the address is tidied, so reloading does not add the picks again', !/bet=/.test(q.url()) && /#\/sports\/cricket$/.test(q.url()));
+    await q.waitForTimeout(450);
+    check('shared link: on a phone the slip opens by itself and says where the picks came from', (await q.evaluate(() => { const r = document.querySelector('#slip').getBoundingClientRect(); return document.querySelector('#slip').classList.contains('open') && r.top < innerHeight - 200; })) && /2 picks from a shared bet/.test(await q.textContent('#slip .msg')));
+    check('shared link: nothing is placed for the visitor; they set a stake and log in first', /Log in to place bet/.test(await q.textContent('#placeBtn')) && (await q.inputValue('#stake')) === '50' && (await q.evaluate(async () => (await (await fetch('/api/me')).json()).user)) === null);
+    await q.screenshot({ path: path.join(SHOTS, 'phone-shared-arrival.png') });
+    await q.goto(`${BASE}/?bet=${code.split('_')[0]}_zz9-w-h`); await q.waitForSelector('#slip .pick');
+    check('shared link: a pick that no longer exists is left out, and the visitor is told', (await q.locator('#slip .pick').count()) === 1 && /1 of 2 shared picks added\. One is no longer available/.test(await q.textContent('#slip .msg')));
+    await q.goto(`${BASE}/?bet=${encodeURIComponent('<img src=x onerror=alert(1)>')}`); await q.waitForSelector('.ev');
+    await q.waitForFunction(() => /no longer available/.test(document.querySelector('#toast').textContent));
+    check('shared link: a broken or tampered link adds nothing and breaks nothing', (await q.locator('#slip .pick').count()) === 0 && !/bet=/.test(q.url()) && (await q.locator('img[src="x"]').count()) === 0);
+    await ctxB.close();
+
     const b0 = await bal(); await p.fill('#stake', '1'); await click('#placeBtn');
     check('stake below the minimum: clear message on the slip, nothing charged', /minimum/i.test(await p.textContent('#slip .msg')) && (await bal()) === b0);
     await p.fill('#stake', '20'); check('typing a stake updates the numbers without losing focus', await p.evaluate(() => document.activeElement.id === 'stake') && /20,00/.test(await p.textContent('#placeBtn')) && /20,00/.test(await p.textContent('#retVal')) === false);
@@ -114,6 +143,9 @@ const results = []; const check = (name, ok, extra = '') => { results.push(ok); 
     const r1 = await placeBet();
     check('two singles placed; clear confirmation on the slip', r1 === 'ok' && (await bal()) === b0 - 4000 && /Bet placed/.test(await p.textContent('#slip .receipt')) && (await p.locator('#slip .receipt a[href="#/my-bets"]').count()) === 1, `${r1}`);
     check('open-bet count appears on My Bets in the nav', (await p.textContent('#openBadge')) === '2');
+    await click('#slip [data-act=shareReceipt]'); await p.waitForSelector('#shareLink');
+    check('share: the bet just placed can be shared from its confirmation', (await p.inputValue('#shareLink')) === shareUrl);
+    await click('#modal [data-act=close]');
     await click('#slip [data-act=newbet]'); check('"Keep betting" clears the confirmation', (await p.locator('#slip .receipt').count()) === 0 && /empty/i.test(await p.textContent('#slip')) && (await p.locator('.odd.sel').count()) === 0);
     await odd(0, 0).click(); await odd(1, 0).click(); await odd(2, 0).click();
     check('a new bet starts from the default R50 stake (R20 from last time did not carry over)', (await p.inputValue('#stake')) === '50');
@@ -134,9 +166,14 @@ const results = []; const check = (name, ok, extra = '') => { results.push(ok); 
     await nav('mybets'); await p.waitForSelector('.bet');
     check('My Bets: Open tab lists 3 open bets, Settled is empty', (await p.locator('.bet').count()) === 3 && /Open \(3\)/.test(await p.textContent('.tabs2')) && /Settled \(0\)/.test(await p.textContent('.tabs2')));
     check('demo settle control is a quiet text link, not a big button', (await p.locator('.demo-note [data-act=settle]').count()) === 1);
+    check('My Bets: every open bet can be shared', (await p.locator('.bet [data-sharebet]').count()) === 3);
+    await p.locator('.bet [data-sharebet]').first().click(); await p.waitForSelector('#shareLink');
+    check('My Bets: sharing the 3-pick multiple gives a link with its 3 picks', (await p.locator('.share-list li').count()) === 3 && (await p.inputValue('#shareLink')).split('bet=')[1].split('_').length === 3);
+    await click('#modal [data-act=close]');
     const beforeSettle = await bal(); await click('[data-act=settle]'); await toast(/winning|no winners/);
     const bets = (await api('GET', '/bets')).d.bets; const paid = bets.reduce((s, b) => s + b.payout_cents, 0);
     check('settlement pays exactly the winners; view switches to Settled', (await bal()) === beforeSettle + paid && bets.every(b => b.status !== 'open') && /Settled \(3\)/.test(await p.textContent('.tabs2')) && (await p.locator('.bet').count()) === 3, `paid ${paid}`);
+    check('My Bets: settled bets are not offered for sharing', (await p.locator('[data-sharebet]').count()) === 0);
     await click('[data-btab=open]'); check('Open tab is now empty with a "Place a bet" shortcut', /No open bets/.test(await p.textContent('#content')) && (await p.locator('#content a[href="#/sports/soccer"]').count()) === 1);
 
     /* ---------- games ---------- */
@@ -252,6 +289,9 @@ const results = []; const check = (name, ok, extra = '') => { results.push(ok); 
     await p.keyboard.press('Escape'); check('phone: Escape / tapping outside closes the sheet', await p.evaluate(() => !document.querySelector('#slip').classList.contains('open')));
     await click('#slipBar'); await p.fill('#stake', '10'); const r3 = await placeBet();
     check('phone: bet placed from the sheet, confirmation shown', r3 === 'ok' && /Bet placed/.test(await p.textContent('#slip')));
+    await click('#slip [data-act=shareReceipt]'); await p.waitForSelector('#waShare'); await p.waitForTimeout(150);
+    check('phone: the share screen fits, on top of the bet slip', await p.evaluate(() => { const r = document.querySelector('#modalCard').getBoundingClientRect(), top = document.elementFromPoint(innerWidth / 2, r.top + 30); return r.width <= innerWidth && r.left >= 0 && document.documentElement.scrollWidth <= innerWidth && !!top.closest('#modalCard'); }));
+    await p.screenshot({ path: path.join(SHOTS, 'phone-share.png') }); await click('#modal [data-act=close]');
     await click('#slip .receipt a'); await p.waitForSelector('.bet'); await p.waitForTimeout(400);
     check('phone: "View my bets" closes the sheet and shows the bet', (await hash()) === '#/my-bets' && await p.evaluate(() => !document.querySelector('#slip').classList.contains('open')) && (await p.locator('.bet').count()) >= 1);
     await p.screenshot({ path: path.join(SHOTS, 'phone-mybets.png') });
@@ -275,7 +315,7 @@ const results = []; const check = (name, ok, extra = '') => { results.push(ok); 
     const meB = (await api('GET', '/me')).d;
     check('break: starts, and is shown at the top of every page', meB.break_until > Date.now() + 23 * 36e5 && await p.locator('#notice').isVisible() && /on a break until/i.test(await p.textContent('#notice')));
     await click('#modal [data-act=close]');
-    check('break: the bet slip is paused and says why', (await p.isDisabled('#placeBtn')) && /On a break/.test(await p.textContent('#placeBtn')) && /on a break until/i.test(await p.textContent('#slip .msg')));
+    check('break: the bet slip is paused and says why', (await p.isDisabled('#placeBtn')) && /On a break/.test(await p.textContent('#placeBtn')) && /on a break until/i.test(await p.textContent('#slip .msg')) && (await p.locator('#slip [data-act=shareSlip]').count()) === 0);
     await click('#acct [data-act=deposit]'); await p.waitForSelector('#modalCard .msg');
     check('break: deposits are paused', /paused/.test(await p.textContent('#modalCard')) && (await p.locator('[data-dep]').count()) === 0); await click('#modal [data-act=close]');
     check('break: the server refuses deposits, bets and games as well', (await api('POST', '/deposit', { amount_cents: 10000 })).s === 403 && (await api('POST', '/games/play', { game: 'lion', stake_cents: 500 })).s === 403 && (await bal()) === balB);

@@ -124,7 +124,7 @@ function renderBets() {
   const tabs = `<div class="tabs2" role="group" aria-label="Bet status"><button data-btab="open" aria-pressed="${ui.betsTab === 'open'}">Open (${open.length})</button><button data-btab="settled" aria-pressed="${ui.betsTab === 'settled'}">Settled (${settled.length})</button></div>`;
   const cards = list.map(b => `<article class="bet ${b.status}"><header><span>${b.type === 'multi' ? `Multiple · ${b.legs.length} picks` : 'Single'} <span class="when">#${b.id} · ${new Date(b.created_at).toLocaleString('en-ZA', { timeZone: TZ, day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })}</span></span><span class="tag ${b.status}">${b.status}</span></header>
     <ul>${b.legs.map(l => `<li>${esc(l.label)} @ ${l.odds.toFixed(2)} – <em>${esc(l.match)}</em>${l.result ? ` (${l.result})` : ''}</li>`).join('')}</ul>
-    <div class="bet-sum"><span>Stake ${R(b.stake_cents)} · Odds ${b.odds.toFixed(2)}</span><strong>${b.status === 'won' ? 'Returned ' + R(b.payout_cents) : b.status === 'lost' ? 'Lost' : 'To return ' + R(Math.floor(b.stake_cents * b.odds))}</strong></div></article>`).join('');
+    <div class="bet-sum"><span>Stake ${R(b.stake_cents)} · Odds ${b.odds.toFixed(2)}</span><strong>${b.status === 'won' ? 'Returned ' + R(b.payout_cents) : b.status === 'lost' ? 'Lost' : 'To return ' + R(Math.floor(b.stake_cents * b.odds))}</strong></div>${b.status === 'open' ? `<button class="linkbtn share-bet" data-sharebet="${b.id}">Share this bet</button>` : ''}</article>`).join('');
   const none = `<div class="empty">${ui.betsTab === 'open' ? 'No open bets.' : 'No settled bets yet.'}<br><a class="btn primary" href="#/sports/soccer">Place a bet</a></div>`;
   const demo = me.demo && open.length && ui.betsTab === 'open' ? '<p class="demo-note">Demo only: <button class="linkbtn" data-act="settle">settle my open bets with random results</button></p>' : '';
   return head + tabs + (cards || none) + demo;
@@ -167,7 +167,7 @@ function renderSlip() {
   if (ui.receipt) {
     s.innerHTML = head + `<div class="slip-b receipt"><div class="tick" aria-hidden="true">✔</div><h3>Bet placed</h3>
       <p>${ui.receipt.n === 1 ? '1 bet' : ui.receipt.n + ' bets'} · stake ${R(ui.receipt.total)}. Good luck!</p>
-      <a class="btn primary block" href="#/my-bets" data-act="closeSlip">View my bets</a><button class="linkbtn block" data-act="newbet">Keep betting</button></div>`;
+      <a class="btn primary block" href="#/my-bets" data-act="closeSlip">View my bets</a><button class="linkbtn block" data-act="newbet">Keep betting</button>${ui.receipt.picks && ui.receipt.picks.length ? '<button class="linkbtn block" data-act="shareReceipt">Share this bet</button>' : ''}</div>`;
     return;
   }
   if (!n) { s.innerHTML = head + '<div class="slip-b slip-empty"><b>Your bet slip is empty</b>Tap a price to add it.</div>'; return; }
@@ -187,7 +187,8 @@ function renderSlip() {
     <dl class="sum">${multi ? `<div><dt>Total odds</dt><dd id="oddsTot">${totalOdds().toFixed(2)}</dd></div>` : ''}${n > 1 && !multi ? `<div><dt>Total stake</dt><dd id="stakeTot">${R(total)}</dd></div>` : ''}
       <div class="ret"><dt>To return</dt><dd id="retVal">${R(ret)}</dd></div></dl>
     ${msg}
-    <button class="btn primary block" id="placeBtn" data-act="place" ${ui.busy || brk ? 'disabled' : ''}>${brk ? 'On a break' : ui.busy ? 'Placing…' : me ? `Place bet · ${R(total)}` : 'Log in to place bet'}</button></div>`;
+    <button class="btn primary block" id="placeBtn" data-act="place" ${ui.busy || brk ? 'disabled' : ''}>${brk ? 'On a break' : ui.busy ? 'Placing…' : me ? `Place bet · ${R(total)}` : 'Log in to place bet'}</button>
+    ${brk ? '' : `<button class="linkbtn block" data-act="shareSlip">${n > 1 ? 'Share these picks' : 'Share this pick'}</button>`}</div>`;
 }
 function patchSlip() {                                             // refresh prices without replacing the slip's buttons
   $$('#slip [data-pick]').forEach(row => {
@@ -245,7 +246,7 @@ async function place() {
   const r = await api('POST', '/bets', { type: multi ? 'multi' : 'single', stake_cents: stake,
     selections: ui.slip.map(x => ({ ev: x.ev, mk: x.mk, k: x.k, odds: findSel(x.ev, x.mk, x.k).s.odds })) });
   ui.busy = false;
-  if (r.ok) { setMe(r.data); ui.receipt = { n: r.data.bet_ids.length, total }; resetSlip(); await loadBets(); syncSelected(); renderNav(); renderAcct(); renderSlip(); if (ui.view === 'mybets') renderContent(); return; }
+  if (r.ok) { setMe(r.data); ui.receipt = { n: r.data.bet_ids.length, total, picks: ui.slip.slice() }; resetSlip(); await loadBets(); syncSelected(); renderNav(); renderAcct(); renderSlip(); if (ui.view === 'mybets') renderContent(); return; }
   if (r.status === 409) { await loadEvents(); if (ui.view === 'sports') patchOdds(); return setMsg('warn', 'Prices just changed. Your slip now shows the new prices – check them and place your bet again.'); }
   if (r.status === 401) { me = null; renderAll(); return openAuth('login'); }
   if (r.data.error === 'on_break') { const m = await api('GET', '/me'); setMe(m.data); renderAcct(); return renderSlip(); }   // break started elsewhere
@@ -345,6 +346,48 @@ async function deposit(rands) {
 }
 
 /* ---------- games ---------- */
+/* ---------- sharing a bet: a link that puts the same picks on someone else's slip ---------- */
+// The link carries only which picks were chosen: /?bet=<event>-<market>-<selection>_<...>. No stake, no prices, no names.
+// (Event ids are letters and digits today. If a real feed uses other characters, change the separators here and in the server's SHARE_CODE.)
+const shareCode = picks => picks.map(x => `${x.ev}-${x.mk}-${x.k}`).join('_');
+let sharing = null;                                                 // { link, text } while the share dialog is open
+function openShare(picks) {
+  const rows = picks.map(x => ({ x, f: findSel(x.ev, x.mk, x.k) })).filter(r => r.f && !r.f.e.closed);
+  if (!rows.length) return toast('These picks are no longer open, so there is nothing to share');
+  const n = rows.length, link = `${location.origin}/?bet=${shareCode(rows.map(r => r.x))}`;
+  const name = f => (f.s.k === 'd' ? `Draw (${f.e.home} v ${f.e.away})` : f.s.label);
+  const text = n === 1
+    ? `My ApexBets pick: ${rows[0].f.s.k === 'd' ? name(rows[0].f) : `${rows[0].f.s.label} to win (${rows[0].f.e.home} v ${rows[0].f.e.away})`}. Add it to your bet slip: ${link} 18+ only.`
+    : `My ${n} ApexBets picks: ${rows.map(r => name(r.f)).join(', ')}. Add them to your bet slip: ${link} 18+ only.`;
+  sharing = { link, text };
+  modal(`<h2 id="mTitle">${n > 1 ? 'Share these picks' : 'Share this pick'}</h2>
+    <ul class="share-list">${rows.map(({ f }) => `<li><strong>${esc(f.s.label)}</strong><span>${esc(f.m.name)} · ${esc(f.e.home)} v ${esc(f.e.away)}</span></li>`).join('')}</ul>
+    <p class="warn-text">Whoever opens the link gets ${n > 1 ? 'these picks' : 'this pick'} on their own bet slip, at the prices of that moment. They choose their own stake. Your name and your stake are not shared.</p>
+    <a class="btn primary block" id="waShare" href="https://wa.me/?text=${encodeURIComponent(text)}" target="_blank" rel="noopener">Share on WhatsApp</a>
+    <button class="btn block mt8" data-act="copyShare">Copy link</button>
+    ${navigator.share ? '<button class="btn block mt8" data-act="nativeShare">More ways to share</button>' : ''}
+    <input class="share-link" id="shareLink" readonly value="${esc(link)}" aria-label="The link to share">
+    <button class="btn block mt8" data-act="close">Close</button>`);
+}
+// Arriving through a shared link: put its picks on the slip, then tidy the address. Nothing is ever placed automatically.
+function takeSharedBet() {
+  const raw = new URLSearchParams(location.search).get('bet'); if (raw === null) return null;
+  const parts = raw.split('_').slice(0, MAX_LEGS), picks = [];
+  for (const part of parts) {
+    const [ev, mk, k, extra] = part.split('-'), f = ev && mk && k && extra === undefined ? findSel(ev, mk, k) : null;
+    if (f && !f.e.closed && !picks.some(x => x.ev === ev)) picks.push({ ev, mk, k });      // still open, and one pick per match
+  }
+  const sport = picks.length ? findSel(picks[0].ev, picks[0].mk, picks[0].k).e.sport : 'soccer';
+  history.replaceState(null, '', `${location.pathname}#/sports/${sport}`);                  // the link has done its job: a reload must not add the picks again
+  if (!picks.length) return 'That shared bet is no longer available';
+  const n = picks.length, missing = parts.length - n;
+  ui.slip = picks; ui.mode = 'multi'; ui.receipt = null;
+  ui.msg = { type: 'info', text: missing ? `${n} of ${parts.length} shared picks added. ${missing === 1 ? 'One is' : `${missing} are`} no longer available.`
+    : `${n} pick${n > 1 ? 's' : ''} from a shared bet. Check the prices, choose your stake, then place your bet.` };
+  ui.slipOpen = window.matchMedia('(max-width:1100px)').matches;                           // on a phone, show the slip straight away
+  return null;
+}
+
 /* ---------- withdrawals: bank account, request, live tracker ---------- */
 const wd = { list: [], stats: null, timer: null, editBank: false, busy: false };
 const WD_ACTIVE = ['review', 'approved', 'sent'];
@@ -514,6 +557,7 @@ document.addEventListener('click', async e => {
   if (d.dep) return deposit(Number(d.dep));
   if (d.month) return openSpending(d.month);
   if (d.break) { breakPick = Number(d.break); return redrawLimits(); }
+  if (d.sharebet) { const b = bets.find(x => String(x.id) === d.sharebet); return b ? openShare(b.legs.map(l => ({ ev: l.ev, mk: l.mk, k: l.k }))) : undefined; }
   if (d.wq) { const i = $('#wdAmt'); if (i) { i.value = d.wq === 'all' ? (me.withdrawable_cents / 100).toFixed(2) : d.wq; i.focus(); } return; }
   if (d.rev) {                                                      // demo stand-in for the person who checks large withdrawals
     const r = await api('POST', '/withdrawals/review-demo', { id: Number(d.rev), approve: d.ok === '1' }); if (!r.ok) return;
@@ -529,6 +573,15 @@ document.addEventListener('click', async e => {
     case 'statement': return openStatement();
     case 'spending': return openSpending();
     case 'withdraw': return openWithdraw();
+    case 'shareSlip': return openShare(ui.slip);
+    case 'shareReceipt': return openShare(ui.receipt ? ui.receipt.picks : []);
+    case 'copyShare': {
+      let ok = false;
+      try { await navigator.clipboard.writeText(sharing.link); ok = true; }
+      catch { const i = $('#shareLink'); i.focus(); i.select(); try { ok = document.execCommand('copy'); } catch { ok = false; } }   // older browsers, or a page not served over HTTPS
+      return toast(ok ? 'Link copied' : 'Press and hold the link to copy it');
+    }
+    case 'nativeShare': try { await navigator.share({ text: sharing.text }); } catch { /* the share sheet was closed */ } return;
     case 'changeBank': wd.editBank = true; return drawWdForm();
     case 'cancelBank': wd.editBank = false; return drawWdForm();
     case 'saveLimit': {
@@ -573,9 +626,11 @@ document.addEventListener('submit', async e => {
   const c = await api('GET', '/config'); if (c.ok) config = c.data;
   const [m] = await Promise.all([api('GET', '/me'), loadEvents(), config.games ? loadGames() : null]);
   setMe(m.data); await loadBets();
+  const sharedNote = takeSharedBet();                               // arrived through a shared-bet link?
   if (!location.hash) history.replaceState(null, '', '#/sports/soccer');
   const r = parseHash(); ui.view = r.view; if (r.sport) ui.sport = r.sport;
   renderAll();
+  if (sharedNote) toast(sharedNote);
   setInterval(async () => {                                        // live refresh: patch in place, never re-draw under the user's finger
     if (document.hidden) return;
     const slipChanged = await loadEvents();
