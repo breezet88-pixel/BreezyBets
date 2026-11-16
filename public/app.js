@@ -17,7 +17,7 @@ const SPORTS = [
 
 /* ---------- state ---------- */
 let config = { demo: true, games: true, break_hours: [24, 168, 720], limit_cooloff_hours: 24, banks: [], min_withdrawal_cents: 5000, auto_approve_max_cents: 500000 };   // what this server offers (real-money mode has no casino games)
-let events = [], prevOdds = {}, me = null, bets = [], games = [], gameLimits = { min: 100, max: 50000 };
+let events = [], liveCount = 0, prevOdds = {}, me = null, bets = [], games = [], gameLimits = { min: 100, max: 50000 };
 const ui = { view: 'sports', sport: 'soccer', betsTab: 'open', slip: [], mode: 'multi', stake: DEFAULT_STAKE, slipOpen: false, busy: false, msg: null, receipt: null };
 let lastFocus = null;
 
@@ -81,7 +81,7 @@ function renderNav() {
 
 /* ---------- sports ---------- */
 function sportTabs() {
-  const liveN = events.filter(e => e.live).length;
+  const liveN = liveCount;
   const tab = (id, label, on) => `<a href="#/sports/${id}"${on ? ' aria-current="page"' : ''}>${label}</a>`;
   return `<nav class="sport-tabs" aria-label="Sports">${tab('live', `<i class="dot"></i>Live${liveN ? ` <small>${liveN}</small>` : ''}`, ui.sport === 'live')}${SPORTS.map(s => tab(s.id, `${s.icon} ${s.name}`, ui.sport === s.id)).join('')}</nav>`;
 }
@@ -216,12 +216,63 @@ const setMsg = (type, text, action) => { ui.msg = { type, text, action }; render
 const renderAll = () => { renderNav(); renderAcct(); renderContent(); renderSlip(); };
 
 /* ---------- data ---------- */
-async function loadEvents() {
-  const r = await api('GET', '/events'); if (!r.ok) return false;
-  const old = {}; events.forEach(e => e.markets.forEach(m => m.sels.forEach(s => (old[`${e.id}|${m.key}|${s.k}`] = s.odds))));
-  prevOdds = old; events = r.data.events;
-  const before = ui.slip.length; ui.slip = ui.slip.filter(x => findSel(x.ev, x.mk, x.k));
-  return ui.slip.length !== before;                                // true if the slip itself changed
+// Prices are refreshed lightly: only the matches on screen or on the slip; live ones every 5 seconds with just
+// the numbers that move, the rest every 30 seconds; and nothing at all while no price is on show.
+const inScope = (e, sport) => (sport === 'live' ? e.live : e.sport === sport);
+const inView = e => ui.view === 'sports' && inScope(e, ui.sport);
+const viewShape = () => events.filter(inView).map(e => e.id + (e.live ? 'L' : '')).sort().join() + '|' + liveCount;   // changes only when the list itself must be redrawn
+function noteMove(key, was, now) { if (was !== now) prevOdds[key] = was; else delete prevOdds[key]; }      // feeds the up/down arrows
+function pruneSlip() { const n = ui.slip.length; ui.slip = ui.slip.filter(x => findSel(x.ev, x.mk, x.k)); return ui.slip.length !== n; }   // true if a pick has gone
+
+// Full detail for some events. `owns` says which events in memory this answer replaces, so ones that have gone are dropped.
+async function loadEvents(query = '', owns = () => true) {
+  const r = await api('GET', '/events' + (query ? '?' + query : '')); if (!r.ok) return false;
+  const fresh = new Map(r.data.events.map(e => [e.id, e]));
+  for (const old of events) {
+    const e = fresh.get(old.id); if (!e) continue;
+    for (const m of e.markets) for (const sel of m.sels) {
+      const was = old.markets.find(x => x.key === m.key)?.sels.find(x => x.k === sel.k);
+      if (was) noteMove(`${e.id}|${m.key}|${sel.k}`, was.odds, sel.odds);
+    }
+  }
+  events = events.filter(e => !owns(e) && !fresh.has(e.id)).concat(r.data.events);
+  liveCount = r.data.live_count ?? events.filter(e => e.live).length;
+  return pruneSlip();
+}
+// The matches on screen, plus any on the slip that are somewhere else.
+function refreshView() {
+  const sport = ui.view === 'sports' ? ui.sport : null;            // captured now: the view may change before the answer arrives
+  const extra = ui.slip.map(x => x.ev).filter(id => { const e = events.find(x => x.id === id); return !e || !sport || !inScope(e, sport); });
+  const q = [sport === 'live' ? 'live=1' : sport ? `sport=${sport}` : '', extra.length ? `ids=${extra.join(',')}` : ''].filter(Boolean).join('&');
+  return q ? loadEvents(q, e => (sport ? inScope(e, sport) : false) || extra.includes(e.id)) : false;
+}
+// Live matches: only the clock, the score and the prices.
+async function refreshLive(ids) {
+  const r = await api('GET', '/odds?ids=' + ids.join(',')); if (!r.ok) return false;
+  if (ids.some(id => !r.data.odds[id])) return refreshView();      // one has gone: get the full picture instead
+  liveCount = r.data.live_count;
+  for (const id of ids) {
+    const e = events.find(x => x.id === id), u = r.data.odds[id]; if (!e) continue;
+    e.minute = u.m; e.score = u.s; e.closed = !!u.c; e.live = !!u.l;
+    e.markets.forEach((m, i) => m.sels.forEach((sel, j) => { const now = u.o[i]?.[j]; if (now === undefined) return; noteMove(`${id}|${m.key}|${sel.k}`, sel.odds, now); sel.odds = now; }));
+  }
+  return false;
+}
+let beat = 0, refreshing = false, refreshAgain = false;
+async function refreshPrices(everything) {
+  if (document.hidden) return;
+  if (refreshing) { refreshAgain = refreshAgain || everything; return; }
+  const watched = [...new Set([...events.filter(inView).map(e => e.id), ...ui.slip.map(x => x.ev)])];
+  if (ui.view !== 'sports' && !watched.length) return;             // no price on show: ask for nothing
+  const live = watched.filter(id => { const e = events.find(x => x.id === id); return e && e.live && !e.closed; });
+  const full = everything || beat % 6 === 0;                       // every 30 seconds, or at once after the view changes
+  if (!full && !live.length) return;
+  refreshing = true; const shape = viewShape();
+  try {
+    const slipChanged = full ? await refreshView() : await refreshLive(live);
+    if (ui.view === 'sports') { if (viewShape() !== shape) renderContent(); else patchOdds(); }   // patch in place: never re-draw under the user's finger
+    if (slipChanged) renderSlip(); else patchSlip();
+  } finally { refreshing = false; if (refreshAgain) { refreshAgain = false; refreshPrices(true); } }
 }
 async function loadGames() { const r = await api('GET', '/games'); if (r.ok) { games = r.data.games; gameLimits = { min: r.data.min_stake_cents, max: r.data.max_stake_cents }; } }
 async function loadBets() { if (!me) { bets = []; return; } const r = await api('GET', '/bets'); if (r.ok) bets = r.data.bets; }
@@ -247,7 +298,7 @@ async function place() {
     selections: ui.slip.map(x => ({ ev: x.ev, mk: x.mk, k: x.k, odds: findSel(x.ev, x.mk, x.k).s.odds })) });
   ui.busy = false;
   if (r.ok) { setMe(r.data); ui.receipt = { n: r.data.bet_ids.length, total, picks: ui.slip.slice() }; resetSlip(); await loadBets(); syncSelected(); renderNav(); renderAcct(); renderSlip(); if (ui.view === 'mybets') renderContent(); return; }
-  if (r.status === 409) { await loadEvents(); if (ui.view === 'sports') patchOdds(); return setMsg('warn', 'Prices just changed. Your slip now shows the new prices – check them and place your bet again.'); }
+  if (r.status === 409) { await refreshView(); if (ui.view === 'sports') patchOdds(); return setMsg('warn', 'Prices just changed. Your slip now shows the new prices – check them and place your bet again.'); }
   if (r.status === 401) { me = null; renderAll(); return openAuth('login'); }
   if (r.data.error === 'on_break') { const m = await api('GET', '/me'); setMe(m.data); renderAcct(); return renderSlip(); }   // break started elsewhere
   setMsg('error', r.data.message || 'Could not place the bet.', r.data.error === 'insufficient_funds' ? 'deposit' : undefined);
@@ -539,6 +590,7 @@ async function route() {
   ui.receipt = null; ui.slipOpen = false;                           // moving on: the confirmation has done its job, and Back closes the phone sheet
   if (ui.view === 'mybets') await loadBets();
   renderAll(); window.scrollTo(0, 0);
+  if (ui.view === 'sports') refreshPrices(true);                    // what is in memory for this sport may be a while old
 }
 window.addEventListener('hashchange', route);
 
@@ -631,11 +683,7 @@ document.addEventListener('submit', async e => {
   const r = parseHash(); ui.view = r.view; if (r.sport) ui.sport = r.sport;
   renderAll();
   if (sharedNote) toast(sharedNote);
-  setInterval(async () => {                                        // live refresh: patch in place, never re-draw under the user's finger
-    if (document.hidden) return;
-    const slipChanged = await loadEvents();
-    if (ui.view === 'sports') patchOdds();
-    if (slipChanged) renderSlip(); else patchSlip();
-  }, 5000);
+  setInterval(() => { beat++; refreshPrices(false); }, 5000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshPrices(true); });   // back on the page: catch up straight away
 })();
 })();

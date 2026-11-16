@@ -17,6 +17,10 @@ const results = []; const check = (name, ok, extra = '') => { results.push(ok); 
   // Chrome logs every 4xx API reply as a console error; the test provokes some on purpose, so ignore only those.
   p.on('console', m => { const t = m.text(); if (/status of (400|401|403|409|422)/.test(t)) return; if (m.type() === 'error' || /Content Security Policy/i.test(t)) problems.push('console: ' + t); });
   p.on('requestfailed', r => problems.push('requestfailed: ' + r.url()));
+  // every request for prices, so the test can see how often the page asks and for how much
+  const polls = []; let loads = 0; p.on('load', () => loads++);
+  p.on('request', r => { const u = new URL(r.url()); if (u.pathname === '/api/events' || u.pathname === '/api/odds') polls.push({ t: Date.now(), path: u.pathname, q: u.search }); });
+  const since = t => polls.filter(x => x.t >= t);
 
   const api = (m, u, b) => p.evaluate(async ([m, u, b]) => { const r = await fetch('/api' + u, { method: m, headers: { 'Content-Type': 'application/json' }, body: b ? JSON.stringify(b) : undefined }); return { s: r.status, d: await r.json() }; }, [m, u, b]);
   const bal = async () => (await api('GET', '/me')).d.balance_cents;
@@ -56,11 +60,17 @@ const results = []; const check = (name, ok, extra = '') => { results.push(ok); 
     await tab('live'); const liveRows = await p.locator('.ev').count();
     check('Live tab shows only live matches', liveRows >= 2 && (await p.locator('.ev .live').count()) === liveRows);
     await p.evaluate(() => { document.querySelector('.odd').__keep = true; });
-    const clock0 = await p.textContent('.ev .live'); await p.waitForTimeout(5800);
+    const tLive = Date.now(), clock0 = await p.textContent('.ev .live'); await p.waitForTimeout(5800);
+    check('light refresh: a live page asks only for the moving numbers of its live matches', since(tLive).length >= 1 && since(tLive).every(x => (x.path === '/api/odds' && x.q === '?ids=e0,e8') || (x.path === '/api/events' && x.q === '?live=1')), since(tLive).map(x => x.path + x.q).join(' '));
     check('live clock advances', (await p.textContent('.ev .live')) !== clock0, `${clock0.trim()} → ${(await p.textContent('.ev .live')).trim()}`);
     check('prices refresh IN PLACE (buttons are never replaced, so a tap is never lost)', await p.evaluate(() => document.querySelector('.odd').__keep === true));
     await nav('mybets'); check('My Bets: asks you to log in', /Log in to see your bets/.test(await p.textContent('#content')));
+    const tQuiet = Date.now(); await p.waitForTimeout(11000);
+    check('light refresh: with no price on show (My Bets, empty slip) nothing is fetched at all', since(tQuiet).length === 0, since(tQuiet).map(x => x.path + x.q).join(' '));
     await p.goBack(); await p.waitForSelector('.ev'); check('Back button returns to the previous page', (await hash()) === '#/sports/live');
+    const tCricket = Date.now(); await tab('cricket'); await p.waitForTimeout(11000);
+    const cr = since(tCricket);
+    check('light refresh: a sport with no live match is fetched once on opening, then left alone', cr.length >= 1 && cr.length <= 2 && cr.every(x => x.path === '/api/events' && x.q === '?sport=cricket'), cr.map(x => x.path + x.q).join(' '));
     await tab('soccer');
 
     /* ---------- logged out: tapping a price works, betting asks you to log in ---------- */
@@ -338,6 +348,7 @@ const results = []; const check = (name, ok, extra = '') => { results.push(ok); 
     } finally { srv2.kill(); }
   } catch (e) { check('script completed without exception', false, e.message.split('\n')[0]); await p.screenshot({ path: path.join(SHOTS, 'failure.png') }).catch(() => {}); }
 
+  check('light refresh: the full match list is fetched only when the page itself loads', polls.filter(x => x.path === '/api/events' && !x.q).length === loads, `${polls.filter(x => x.path === '/api/events' && !x.q).length} full fetches, ${loads} page loads, ${polls.length} price requests in all`);
   check('no console errors / CSP violations / failed requests', problems.length === 0, problems.slice(0, 3).join(' | '));
   await browser.close(); srv.kill(); fs.rmSync(dir, { recursive: true, force: true });
   const failed = results.filter(r => !r).length; console.log(`\n${results.length - failed}/${results.length} checks passed`); process.exit(failed ? 1 : 0);
