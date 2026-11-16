@@ -1,0 +1,31 @@
+# Fly.io hosting. Deployed by .github/workflows/deploy.yml; see docs/hosting.md.
+# The app name is the first part of the site address (https://<app>.fly.dev) and must be unique on Fly.
+# To use another name, set the repository variable FLY_APP on GitHub; the workflow passes it to every command.
+app = "apexbets-za"
+primary_region = "jnb"            # Johannesburg
+
+[env]
+  DEMO_MODE = "true"              # play money. Real-money mode needs a licence, a certified platform and a payment provider first.
+
+[[mounts]]
+  source = "apexbets_data"        # the disk that holds the database
+  destination = "/data"
+  initial_size = "1gb"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"     # sleeps when nobody is visiting, wakes on the next visit: keeps the bill small
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/api/config"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

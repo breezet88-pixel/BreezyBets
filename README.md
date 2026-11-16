@@ -8,7 +8,7 @@ Grizzly Gold, Eagle Eye, Wolf Pack, Shark Frenzy) plus a sportsbook (PSL soccer,
 Requires Node 22.13+ (zero npm dependencies; uses built-in `node:sqlite`).
 
 ```
-npm start          # http://localhost:3000   (also: PORT, DB_PATH, DEMO_MODE=false, GAMES_ENABLED, LIMIT_COOLOFF_HOURS, AUTO_APPROVE_MAX_CENTS, NODE_ENV=production)
+npm start          # http://localhost:3000   (also: PORT, DB_PATH, DEMO_MODE=false, GAMES_ENABLED, LIMIT_COOLOFF_HOURS, AUTO_APPROVE_MAX_CENTS, NODE_ENV=production, TRUST_PROXY=1 behind a hosting proxy)
 npm test           # API, wallet-ledger, game-RTP and hardening tests (no browser needed)
 npm run e2e        # browser end-to-end run (needs Playwright installed: drives every page, all 6 games, bets, deposits, mobile)
 ```
@@ -75,3 +75,6 @@ See [`docs/payments.md`](docs/payments.md): chosen provider (Peach Payments, wit
 
 ## Competitive research
 See [`docs/competitive-analysis.md`](docs/competitive-analysis.md): the South African market, what rivals already do, the gaps where a newcomer can be better, where we are at a disadvantage, and what a real licensed launch requires.
+
+## Hosting
+See [`docs/hosting.md`](docs/hosting.md): Fly.io in Johannesburg, with a `Dockerfile`, `fly.toml` and a GitHub Actions workflow that tests and deploys on every push once a `FLY_API_TOKEN` secret is added.

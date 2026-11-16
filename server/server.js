@@ -30,7 +30,7 @@ const MAX_LIMIT = 100000000;                                       // R1 million
 // A daily deposit limit is either 0 (the player chose "no limit") or at least one minimum deposit.
 const validLimit = v => Number.isInteger(v) && (v === 0 || (v >= MIN_DEPOSIT && v <= MAX_LIMIT));
 
-export function createApp({ dbPath = process.env.DB_PATH || './data/apexbets.db', demoMode = process.env.DEMO_MODE !== 'false', gamesEnabled = process.env.GAMES_ENABLED ? process.env.GAMES_ENABLED === 'true' : demoMode, secureCookies = process.env.NODE_ENV === 'production', simulate = true, signupsPerHour = 10,
+export function createApp({ dbPath = process.env.DB_PATH || './data/apexbets.db', demoMode = process.env.DEMO_MODE !== 'false', gamesEnabled = process.env.GAMES_ENABLED ? process.env.GAMES_ENABLED === 'true' : demoMode, secureCookies = process.env.NODE_ENV === 'production', trustProxy = process.env.TRUST_PROXY === '1', simulate = true, signupsPerHour = 10,
   limitCoolOffMs = Number(process.env.LIMIT_COOLOFF_HOURS ?? 24) * 36e5,
   autoApproveMaxCents = Number(process.env.AUTO_APPROVE_MAX_CENTS) || 500000,          // R5 000: above this a person checks the withdrawal
   payoutSendMs = Number(process.env.PAYOUT_SEND_MS) || 3000, payoutPaidMs = Number(process.env.PAYOUT_PAID_MS) || 9000 } = {}) {   // simulated bank timetable
@@ -271,7 +271,11 @@ export function createApp({ dbPath = process.env.DB_PATH || './data/apexbets.db'
   function needActive(u) { need(u); if (onBreak(u)) throw new HttpError(403, 'on_break', 'You are on a break. Betting and deposits are paused until it ends.'); }
 
   /* ---- http plumbing ---- */
+  // Behind a hosting provider's proxy every connection comes from the proxy, so the visitor's own address is read
+  // from the header the proxy sets. Only when TRUST_PROXY=1: on a server reached directly, anyone could fake that header.
+  const clientIp = req => (trustProxy && (req.headers['fly-client-ip'] || String(req.headers['x-forwarded-for'] || '').split(',')[0].trim())) || req.socket.remoteAddress;
   const SECURITY = {
+    ...(secureCookies ? { 'Strict-Transport-Security': 'max-age=31536000' } : {}),            // production is HTTPS-only
     'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
     'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin', 'X-Frame-Options': 'DENY',
   };
@@ -348,7 +352,7 @@ export function createApp({ dbPath = process.env.DB_PATH || './data/apexbets.db'
       const token = parseCookies(req.headers.cookie)[COOKIE];
       let user = userForToken(db, token);
       if (user) user = settleLimit(db, user);                 // a limit increase whose cooling-off has passed takes effect now
-      const [status, payload, headers] = await handler({ body, token, user, ip: req.socket.remoteAddress, query: url.searchParams });
+      const [status, payload, headers] = await handler({ body, token, user, ip: clientIp(req), query: url.searchParams });
       if (status === 200 && LEAN.has(route)) return sendLean(req, res, payload);
       send(res, status, payload, headers);
     } catch (e) {

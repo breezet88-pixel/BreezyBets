@@ -129,3 +129,18 @@ test('casino games are demo-only: off in real-money mode unless explicitly enabl
   const forced = await start({ dbPath: ':memory:', demoMode: false, gamesEnabled: true });   // GAMES_ENABLED=true is a deliberate owner decision
   assert.equal((await caller(forced.base)('GET', '/api/games')).status, 200);
 });
+
+test('behind a hosting proxy, limits apply per visitor, and the visitor address is only believed when told to', async () => {
+  const signUp = (base, name, ip) => fetch(base + '/api/register', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Fly-Client-IP': ip },
+    body: JSON.stringify({ ...NEW, username: name }) }).then(r => r.status);
+  const hosted = await start({ dbPath: ':memory:', signupsPerHour: 2, trustProxy: true });
+  assert.deepEqual([await signUp(hosted.base, 'Anna1', '41.0.0.1'), await signUp(hosted.base, 'Anna2', '41.0.0.1'), await signUp(hosted.base, 'Anna3', '41.0.0.1')], [201, 201, 429]);
+  assert.equal(await signUp(hosted.base, 'Bongi1', '41.0.0.2'), 201, 'a different visitor is not held back by the first one');
+
+  const direct = await start({ dbPath: ':memory:', signupsPerHour: 2 });               // no proxy: the header could be faked, so it is ignored
+  assert.deepEqual([await signUp(direct.base, 'Cebo1', '41.0.0.1'), await signUp(direct.base, 'Cebo2', '41.0.0.2'), await signUp(direct.base, 'Cebo3', '41.0.0.3')], [201, 201, 429]);
+
+  const prod = await start({ dbPath: ':memory:', secureCookies: true });
+  const r = await fetch(prod.base + '/'); assert.match(r.headers.get('strict-transport-security'), /max-age=31536000/);
+  assert.equal((await fetch(direct.base + '/')).headers.get('strict-transport-security'), null);
+});

@@ -1,9 +1,9 @@
 // Browser end-to-end test. Needs Playwright (not a project dependency):  node test/e2e.cjs
 // Starts its own server on a temp database, drives the UI like a user, and cross-checks the UI against the API.
-const { chromium } = require('playwright');
+const { chromium } = require('playwright');   // ports 7000-8999 are used: Chrome refuses some lower ones (e.g. 3659) as unsafe
 const { spawn } = require('node:child_process');
 const os = require('node:os'), path = require('node:path'), fs = require('node:fs');
-const PORT = 3200 + Math.floor(Math.random() * 500), BASE = `http://localhost:${PORT}`;
+const PORT = 7000 + Math.floor(Math.random() * 900), BASE = `http://localhost:${PORT}`;
 const SHOTS = process.env.SHOTS || os.tmpdir();
 const OLD = new RegExp(['bre', 'ez'].join(''), 'i');   // the retired product name, assembled so it never appears in the source
 const results = []; const check = (name, ok, extra = '') => { results.push(ok); console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${extra ? '  — ' + extra : ''}`); };

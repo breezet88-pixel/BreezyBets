@@ -1,0 +1,51 @@
+# Tests every push, then deploys to Fly.io. See docs/hosting.md for the one-time setup.
+# Until the FLY_API_TOKEN secret exists, the deploy step is skipped and the run still passes.
+name: Test and deploy
+
+on:
+  push:
+    branches: [main, claude/sa-betting-website-tg7b1p]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      FLY_APP: ${{ vars.FLY_APP || 'apexbets-za' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check that hosting is set up
+        id: ready
+        run: |
+          if [ -z "$FLY_API_TOKEN" ]; then
+            echo "::notice::No FLY_API_TOKEN secret yet, so nothing was deployed. See docs/hosting.md."
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+        if: steps.ready.outputs.go == 'true'
+      - name: Create the app on first run
+        if: steps.ready.outputs.go == 'true'
+        run: flyctl status --app "$FLY_APP" >/dev/null 2>&1 || flyctl apps create "$FLY_APP"
+      - name: Deploy
+        if: steps.ready.outputs.go == 'true'
+        run: flyctl deploy --remote-only --app "$FLY_APP" --ha=false
+      - name: Site address
+        if: steps.ready.outputs.go == 'true'
+        run: echo "::notice::Deployed to https://$FLY_APP.fly.dev"

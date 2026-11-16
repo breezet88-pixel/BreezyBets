@@ -1,0 +1,10 @@
+.git
+.github
+data
+docs
+test
+tools
+node_modules
+*.db
+*.db-*
+*.md
