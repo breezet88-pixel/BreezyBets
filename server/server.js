@@ -9,7 +9,8 @@ import { WalletError, balance, userAccount, credit, debit, post, depositedToday 
 import { GAMES, gameById, publicGame, spin, evaluate } from './games.js';
 import { hashPassword, verifyPassword, createSession, userForToken, destroySession, ageFromDob, createLimiter, SESSION_TTL_MS } from './auth.js';
 import { HttpError, bad } from './errors.js';
-import { BREAK_HOURS, settleLimit, changeLimit, onBreak, startBreak, statement, currentMonth, isMonth } from './safety.js';
+import { BREAK_HOURS, settleLimit, changeLimit, onBreak, startBreak, statement, currentMonth, isMonth, playThrough } from './safety.js';
+import { createWithdrawals, BANKS, MIN_WITHDRAWAL } from './withdrawals.js';
 
 const PUBLIC_DIR = resolve(fileURLToPath(new URL('../public', import.meta.url)));
 const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon' };
@@ -23,22 +24,30 @@ const MAX_LIMIT = 100000000;                                       // R1 million
 const validLimit = v => Number.isInteger(v) && (v === 0 || (v >= MIN_DEPOSIT && v <= MAX_LIMIT));
 
 export function createApp({ dbPath = process.env.DB_PATH || './data/apexbets.db', demoMode = process.env.DEMO_MODE !== 'false', gamesEnabled = process.env.GAMES_ENABLED ? process.env.GAMES_ENABLED === 'true' : demoMode, secureCookies = process.env.NODE_ENV === 'production', simulate = true, signupsPerHour = 10,
-  limitCoolOffMs = Number(process.env.LIMIT_COOLOFF_HOURS ?? 24) * 36e5 } = {}) {
+  limitCoolOffMs = Number(process.env.LIMIT_COOLOFF_HOURS ?? 24) * 36e5,
+  autoApproveMaxCents = Number(process.env.AUTO_APPROVE_MAX_CENTS) || 500000,          // R5 000: above this a person checks the withdrawal
+  payoutSendMs = Number(process.env.PAYOUT_SEND_MS) || 3000, payoutPaidMs = Number(process.env.PAYOUT_PAID_MS) || 9000 } = {}) {   // simulated bank timetable
   const db = openDb(dbPath);
   const odds = createOddsEngine();
   const loginLimiter = createLimiter(5, 15 * 60e3), signupLimiter = createLimiter(signupsPerHour, 60 * 60e3);
   const ticker = simulate ? setInterval(() => odds.tick(), 5000) : null;
   ticker?.unref();
+  const withdrawals = createWithdrawals({ db, autoApproveMaxCents, sendMs: payoutSendMs, paidMs: payoutPaidMs });
+  // The simulated bank moves payouts along once a second. (Every API request also does, so nothing waits on this timer.)
+  const payoutTicker = simulate ? setInterval(() => { try { withdrawals.advance(); } catch (e) { console.error(e); } }, 1000) : null;
+  payoutTicker?.unref();
 
-  const me = u => ({
+  const me = u => { const bal = balance(db, userAccount(u.id)); return {
     user: { id: u.id, username: u.username },
-    balance_cents: balance(db, userAccount(u.id)),
+    balance_cents: bal,
+    ...playThrough(db, u.id, bal),                          // withdrawable_cents, unplayed_cents
+    payout_account: withdrawals.account(u.id),
     deposit_limit_cents: u.deposit_limit_cents,
     deposited_today_cents: depositedToday(db, u.id),
     pending_limit: u.deposit_limit_pending_at ? { cents: u.deposit_limit_pending_cents, at: u.deposit_limit_pending_at } : null,
     break_until: onBreak(u) ? u.break_until : null,
     demo: demoMode,
-  });
+  }; };
   const cookieHeader = (token, maxAge) =>
     `${COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}${secureCookies ? '; Secure' : ''}`;
   const money = (v, min, max, what) => {
@@ -85,7 +94,8 @@ export function createApp({ dbPath = process.env.DB_PATH || './data/apexbets.db'
 
     'POST /api/logout': ({ token }) => { if (token) destroySession(db, token); return [200, { ok: true }, { 'Set-Cookie': cookieHeader('', 0) }]; },
     'GET /api/me': ({ user }) => [200, user ? me(user) : { user: null }],
-    'GET /api/config': () => [200, { demo: demoMode, games: gamesEnabled, break_hours: BREAK_HOURS, limit_cooloff_hours: limitCoolOffMs / 36e5, min_deposit_cents: MIN_DEPOSIT }],
+    'GET /api/config': () => [200, { demo: demoMode, games: gamesEnabled, break_hours: BREAK_HOURS, limit_cooloff_hours: limitCoolOffMs / 36e5, min_deposit_cents: MIN_DEPOSIT,
+      banks: BANKS, min_withdrawal_cents: MIN_WITHDRAWAL, auto_approve_max_cents: autoApproveMaxCents }],
     'GET /api/events': () => [200, { events: odds.snapshot() }],
 
     'POST /api/deposit': ({ user, body }) => {
@@ -209,6 +219,31 @@ export function createApp({ dbPath = process.env.DB_PATH || './data/apexbets.db'
       })];
     },
 
+    /* ---- withdrawals (the bank side is simulated until a payment provider is connected) ---- */
+    'PUT /api/payout-account': ({ user, body }) => {
+      need(user); needProvider();
+      withdrawals.saveAccount(user.id, body);
+      return [200, me(user)];
+    },
+
+    'GET /api/withdrawals': ({ user }) => { need(user); return [200, { withdrawals: withdrawals.list(user.id) }]; },
+
+    // Allowed during a break: a player can always take their money out.
+    'POST /api/withdrawals': ({ user, body }) => {
+      need(user); needProvider();
+      return [201, tx(db, () => { const w = withdrawals.request(user, body.amount_cents); return { withdrawal: w, ...me(user) }; })];
+    },
+
+    // DEMO ONLY: stands in for the back-office person who checks withdrawals above the automatic amount.
+    'POST /api/withdrawals/review-demo': ({ user, body }) => {
+      need(user);
+      if (!demoMode) throw new HttpError(404, 'not_found', 'Not found');
+      return [200, tx(db, () => { const w = withdrawals.review(user.id, body.id, body.approve === true); return { withdrawal: w, ...me(user) }; })];
+    },
+
+    // Public: how long payouts really took over the last 30 days.
+    'GET /api/payout-stats': () => [200, { ...withdrawals.stats(), simulated: demoMode }],
+
     'GET /api/ledger': ({ user }) => {
       need(user);
       const rows = db.prepare(`SELECT t.id, t.kind, t.ref, t.created_at, e.amount_cents FROM ledger_entries e JOIN ledger_txns t ON t.id=e.txn_id
@@ -218,6 +253,7 @@ export function createApp({ dbPath = process.env.DB_PATH || './data/apexbets.db'
   };
   const DUMMY_HASH = 'scrypt$' + '00'.repeat(16) + '$' + '00'.repeat(64);
   function need(u) { if (!u) throw new HttpError(401, 'unauthenticated', 'Please log in'); }
+  function needProvider() { if (!demoMode) throw new HttpError(501, 'no_payment_provider', 'No payment provider configured'); }
   function needActive(u) { need(u); if (onBreak(u)) throw new HttpError(403, 'on_break', 'You are on a break. Betting and deposits are paused until it ends.'); }
 
   /* ---- http plumbing ---- */
@@ -266,6 +302,7 @@ export function createApp({ dbPath = process.env.DB_PATH || './data/apexbets.db'
         if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'Method not allowed');
         return await serveStatic(res, url.pathname);
       }
+      withdrawals.advance();                                  // bring payouts up to date before answering anything
       const handler = routes[`${req.method} ${url.pathname}`];
       if (!handler) return send(res, 404, { error: 'not_found' });
       let body = {};
@@ -287,8 +324,8 @@ export function createApp({ dbPath = process.env.DB_PATH || './data/apexbets.db'
     }
   });
   let closed = false;                                      // 'close' can fire twice if close() is called twice
-  server.on('close', () => { if (closed) return; closed = true; clearInterval(ticker); db.close(); });
-  return { server, db, odds };
+  server.on('close', () => { if (closed) return; closed = true; clearInterval(ticker); clearInterval(payoutTicker); db.close(); });
+  return { server, db, odds, withdrawals };
 }
 
 // Run directly: `node server/server.js`
