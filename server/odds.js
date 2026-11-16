@@ -49,11 +49,20 @@ export function createOddsEngine(now = Date.now()) {
     return m;
   }
 
+  const full = e => ({
+    id: e.id, sport: e.sport, league: e.league, home: e.home, away: e.away, start: e.start,
+    live: e.live, closed: isClosed(e), score: e.score && e.score.slice(), minute: e.minute, markets: markets(e),
+  });
+  // Which events a request is about: one sport, everything live, named ids, any mix of those, or (no filter) everything.
+  const wanted = f => (!f ? events : events.filter(e => (f.sport && e.sport === f.sport) || (f.live && e.live) || (f.ids && f.ids.includes(e.id))));
+
   return {
-    snapshot: () => events.map(e => ({
-      id: e.id, sport: e.sport, league: e.league, home: e.home, away: e.away, start: e.start,
-      live: e.live, closed: isClosed(e), score: e.score && e.score.slice(), minute: e.minute, markets: markets(e),
-    })),
+    snapshot: filter => wanted(filter).map(full),
+    // Only the numbers that move, for events the browser already knows about:
+    // m = minute, s = score, c = closed, l = live, o = prices, one list per market in the event's market order.
+    slim: ids => Object.fromEntries(events.filter(e => ids.includes(e.id)).map(e =>
+      [e.id, { m: e.minute, s: e.score, c: isClosed(e) ? 1 : 0, l: e.live ? 1 : 0, o: markets(e).map(m => m.sels.map(x => x.odds)) }])),
+    liveCount: () => events.filter(e => e.live).length,
     // Resolve a selection against CURRENT odds; null if unknown or not open for betting.
     lookup(evId, mk, k) {
       const e = events.find(x => x.id === evId); if (!e) return null;
@@ -63,10 +72,11 @@ export function createOddsEngine(now = Date.now()) {
     },
     tick() {
       for (const e of events) {
-        if (e.live && !isClosed(e)) {
+        if (isClosed(e)) continue;                                // full time: nothing moves any more
+        if (e.live) {
           e.minute += 1;
           if (Math.random() < .08 && e.score) e.score[Math.random() < .5 ? 0 : 1] += e.sport === 'rugby' ? (Math.random() < .5 ? 7 : 3) : 1;
-        }
+        } else if (Math.random() > .15) continue;                 // before kick-off, prices move now and then, not every few seconds
         const j = e.live ? .03 : .008, sh = (Math.random() - .5) * j;
         e.p[0] = Math.min(.9, Math.max(.05, e.p[0] + sh));
         if (e.p[1] != null) { e.p[1] = Math.min(.5, Math.max(.08, e.p[1] - sh / 2)); e.p[2] = Math.max(.05, 1 - e.p[0] - e.p[1]); }

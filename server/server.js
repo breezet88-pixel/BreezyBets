@@ -1,5 +1,6 @@
 import http from 'node:http';
 import { gzipSync } from 'node:zlib';
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { resolve, extname, join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -22,6 +23,9 @@ const MIN_DEPOSIT = 1000, MAX_DEPOSIT = 500000, WELCOME_BONUS = 100000;
 // A shared bet travels as /?bet=<event>-<market>-<selection>_<...>: letters and digits only, at most MAX_LEGS picks.
 const SHARE_CODE = /^[A-Za-z0-9]+-[A-Za-z0-9]+-[A-Za-z0-9]+(_[A-Za-z0-9]+-[A-Za-z0-9]+-[A-Za-z0-9]+){0,11}$/;
 const OG_DEFAULT = 'Simple sports betting for South Africa. Play-money demo. 18+.';   // must match the og:description in public/index.html
+// A refresh may name the events it needs: up to 50 ids, letters and digits only.
+const ID_LIST = /^[A-Za-z0-9]+(,[A-Za-z0-9]+){0,49}$/;
+const idList = s => (s && ID_LIST.test(s) ? s.split(',') : []);
 const MAX_LIMIT = 100000000;                                       // R1 million: a sanity cap on a daily deposit limit
 // A daily deposit limit is either 0 (the player chose "no limit") or at least one minimum deposit.
 const validLimit = v => Number.isInteger(v) && (v === 0 || (v >= MIN_DEPOSIT && v <= MAX_LIMIT));
@@ -99,7 +103,14 @@ export function createApp({ dbPath = process.env.DB_PATH || './data/apexbets.db'
     'GET /api/me': ({ user }) => [200, user ? me(user) : { user: null }],
     'GET /api/config': () => [200, { demo: demoMode, games: gamesEnabled, break_hours: BREAK_HOURS, limit_cooloff_hours: limitCoolOffMs / 36e5, min_deposit_cents: MIN_DEPOSIT,
       banks: BANKS, min_withdrawal_cents: MIN_WITHDRAWAL, auto_approve_max_cents: autoApproveMaxCents }],
-    'GET /api/events': () => [200, { events: odds.snapshot() }],
+    // Odds. With no query this is every event. A browser that already has the list asks only for what is on screen:
+    //   ?sport=soccer   ?live=1   ?ids=e3,e7   (any mix). live_count keeps the "Live" tab's number right either way.
+    'GET /api/events': ({ query }) => {
+      const sport = query.get('sport'), live = query.get('live') === '1', ids = idList(query.get('ids'));
+      return [200, { events: odds.snapshot(sport || live || ids.length ? { sport, live, ids } : undefined), live_count: odds.liveCount() }];
+    },
+    // The few numbers that move during a match (clock, score, prices) for events the browser already knows.
+    'GET /api/odds': ({ query }) => [200, { odds: odds.slim(idList(query.get('ids'))), live_count: odds.liveCount() }],
 
     'POST /api/deposit': ({ user, body }) => {
       needActive(user);
@@ -278,6 +289,19 @@ export function createApp({ dbPath = process.env.DB_PATH || './data/apexbets.db'
     res.writeHead(status, head);
     res.end(payload);
   };
+  // Odds refreshes are most of a visitor's data use, so these two public, anonymous routes are sent lean:
+  // only the headers a JSON answer needs, and "304 Not Modified" with no body when nothing changed since the
+  // browser last asked. (The browser's own cache does the asking and re-uses its copy; the page code is unaware.)
+  const LEAN = new Set(['GET /api/events', 'GET /api/odds']);
+  function sendLean(req, res, payload) {
+    const body = JSON.stringify(payload), tag = `W/"${createHash('sha1').update(body).digest('base64url').slice(0, 16)}"`;
+    const head = { 'Cache-Control': 'no-cache', ETag: tag, Vary: 'Accept-Encoding', 'X-Content-Type-Options': 'nosniff' };
+    if (req.headers['if-none-match'] === tag) { res.writeHead(304, head); return res.end(); }
+    head['Content-Type'] = 'application/json';
+    const gz = res.gzipOk && Buffer.byteLength(body) >= 512;
+    if (gz) head['Content-Encoding'] = 'gzip';
+    res.writeHead(200, head); res.end(gz ? gzipSync(body) : body);
+  }
   const readBody = req => new Promise((ok, fail) => {
     let size = 0; const chunks = [];
     let tooBig = false;
@@ -312,7 +336,7 @@ export function createApp({ dbPath = process.env.DB_PATH || './data/apexbets.db'
         return await serveStatic(res, url.pathname, url.searchParams);
       }
       withdrawals.advance();                                  // bring payouts up to date before answering anything
-      const handler = routes[`${req.method} ${url.pathname}`];
+      const route = `${req.method} ${url.pathname}`, handler = routes[route];
       if (!handler) return send(res, 404, { error: 'not_found' });
       let body = {};
       if (req.method !== 'GET') {
@@ -325,6 +349,7 @@ export function createApp({ dbPath = process.env.DB_PATH || './data/apexbets.db'
       let user = userForToken(db, token);
       if (user) user = settleLimit(db, user);                 // a limit increase whose cooling-off has passed takes effect now
       const [status, payload, headers] = await handler({ body, token, user, ip: req.socket.remoteAddress, query: url.searchParams });
+      if (status === 200 && LEAN.has(route)) return sendLean(req, res, payload);
       send(res, status, payload, headers);
     } catch (e) {
       if (e instanceof HttpError) return send(res, e.status, { error: e.code, message: e.message }, e.status === 413 ? { Connection: 'close' } : {});
