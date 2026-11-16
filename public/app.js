@@ -16,7 +16,7 @@ const SPORTS = [
 ];
 
 /* ---------- state ---------- */
-let config = { demo: true, games: true, break_hours: [24, 168, 720], limit_cooloff_hours: 24 };   // what this server offers (real-money mode has no casino games)
+let config = { demo: true, games: true, break_hours: [24, 168, 720], limit_cooloff_hours: 24, banks: [], min_withdrawal_cents: 5000, auto_approve_max_cents: 500000 };   // what this server offers (real-money mode has no casino games)
 let events = [], prevOdds = {}, me = null, bets = [], games = [], gameLimits = { min: 100, max: 50000 };
 const ui = { view: 'sports', sport: 'soccer', betsTab: 'open', slip: [], mode: 'multi', stake: DEFAULT_STAKE, slipOpen: false, busy: false, msg: null, receipt: null };
 let lastFocus = null;
@@ -65,7 +65,7 @@ function renderAcct() {
     ? `<span class="bal" aria-label="Balance">${R(me.balance_cents)}</span>
        <button class="btn primary" data-act="deposit">Deposit</button>
        <details class="menu" id="menu"><summary>Account</summary><div class="menu-pop">
-         <button data-act="spending">My spending</button><button data-act="limits">Limits &amp; breaks</button><button data-act="logout">Log out</button></div></details>`
+         <button data-act="withdraw">Withdraw</button><button data-act="spending">My spending</button><button data-act="limits">Limits &amp; breaks</button><button data-act="logout">Log out</button></div></details>`
     : '<button class="btn" data-act="login">Log in</button><button class="btn primary" data-act="join">Join</button>';
   const notice = $('#notice'), brk = onBreak();                      // a break is shown on every page, not hidden in a menu
   notice.hidden = !brk;
@@ -255,7 +255,7 @@ async function place() {
 /* ---------- modals ---------- */
 function modal(html) { if ($('#modal').hidden) lastFocus = document.activeElement;   // one dialog replacing another keeps the original return point
   $('#modalCard').innerHTML = html; $('#modal').hidden = false; const i = $('#modalCard input:not([type=checkbox]),#modalCard button'); i && i.focus(); }
-function closeModal() { $('#modal').hidden = true; if (lastFocus && document.contains(lastFocus)) lastFocus.focus(); lastFocus = null; }
+function closeModal() { $('#modal').hidden = true; stopWdPoll(); if (lastFocus && document.contains(lastFocus)) lastFocus.focus(); lastFocus = null; }
 function openAuth(mode) {
   const reg = mode === 'register';
   modal(`<h2 id="mTitle">${reg ? 'Create your account' : 'Log in'}</h2>
@@ -333,9 +333,9 @@ async function openSpending(month) {
 }
 async function openStatement() {
   const r = await api('GET', '/ledger'); if (!r.ok) return toast('Could not load the statement');
-  const label = { bonus: 'Welcome bonus', deposit: 'Deposit', bet_stake: 'Bet stake', bet_payout: 'Bet winnings', game_stake: 'Game stake', game_win: 'Game win' };
+  const label = { bonus: 'Welcome bonus', deposit: 'Deposit', bet_stake: 'Bet stake', bet_payout: 'Bet winnings', game_stake: 'Game stake', game_win: 'Game win', withdrawal: 'Withdrawal', withdrawal_returned: 'Withdrawal returned' };
   modal(`<h2 id="mTitle">All transactions</h2><p class="warn-text">Balance ${R(me.balance_cents)}. Every movement is recorded and can never be edited. <button class="linkbtn" data-act="spending">Back to My spending</button></p>
-    <table class="stmt">${r.data.entries.map(e => `<tr><td>${new Date(e.created_at).toLocaleString('en-ZA', { dateStyle: 'short', timeStyle: 'short' })}</td><td>${esc(label[e.kind] || e.kind)}${e.ref ? ' ' + esc(e.ref.replace(/^(bet|round):/, '#')) : ''}</td>
+    <table class="stmt">${r.data.entries.map(e => `<tr><td>${new Date(e.created_at).toLocaleString('en-ZA', { dateStyle: 'short', timeStyle: 'short' })}</td><td>${esc(label[e.kind] || e.kind)}${e.ref ? ' ' + esc(e.ref.replace(/^(bet|round|withdrawal):/, '#')) : ''}</td>
       <td class="${e.amount_cents < 0 ? 'neg' : 'pos'}">${e.amount_cents < 0 ? '−' : '+'}${R(Math.abs(e.amount_cents))}</td></tr>`).join('') || '<tr><td>No transactions</td></tr>'}</table>
     <button class="btn block mt8" data-act="close">Close</button>`);
 }
@@ -345,6 +345,109 @@ async function deposit(rands) {
 }
 
 /* ---------- games ---------- */
+/* ---------- withdrawals: bank account, request, live tracker ---------- */
+const wd = { list: [], stats: null, timer: null, editBank: false, busy: false };
+const WD_ACTIVE = ['review', 'approved', 'sent'];
+const WD_LABEL = { review: 'Being checked', approved: 'Approved', sent: 'On its way', paid: 'Paid', failed: 'Returned', declined: 'Declined' };
+const secs = n => (n < 90 ? `${n} second${n === 1 ? '' : 's'}` : `${Math.round(n / 60)} minutes`);
+const clock = ms => new Date(ms).toLocaleTimeString('en-ZA', { timeZone: TZ, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+function stopWdPoll() { clearInterval(wd.timer); wd.timer = null; }
+
+async function openWithdraw() {
+  if (!me) return openAuth('login');
+  const [l, s, m] = await Promise.all([api('GET', '/withdrawals'), api('GET', '/payout-stats'), api('GET', '/me')]);
+  wd.list = l.ok ? l.data.withdrawals : []; wd.stats = s.ok ? s.data : null; wd.editBank = false; wd.busy = false;
+  if (m.ok && m.data.user) { setMe(m.data); renderAcct(); }
+  modal('<h2 id="mTitle">Withdraw</h2><div id="wdForm"></div><div id="wdList"></div><button class="btn block mt8" data-act="close">Close</button>');
+  drawWdForm(); drawWdList(); pollWd();
+  const first = $('#wdForm select, #wdForm input'); if (first) first.focus();
+}
+function drawWdForm() {
+  const box = $('#wdForm'); if (!box) return;
+  if (!me.demo) { box.innerHTML = '<p class="msg warn">Withdrawals open as soon as the payment provider is connected.</p>'; return; }
+  const a = me.payout_account;
+  if (!a || wd.editBank) {
+    box.innerHTML = `<p class="warn-text">${a ? 'Change the bank account your withdrawals are paid to.' : 'First, add the bank account your withdrawals are paid to.'} It must be in your own name.</p>
+      <form id="bankForm">
+        <label class="field"><span>Bank</span><select name="bank" required><option value="">Choose your bank</option>${config.banks.map(b => `<option${a && a.bank === b ? ' selected' : ''}>${esc(b)}</option>`).join('')}</select></label>
+        <label class="field"><span>Account number</span><input name="account_number" inputmode="numeric" pattern="[0-9]{6,16}" title="6 to 16 digits" required autocomplete="off"></label>
+        <label class="field"><span>Account holder</span><input name="holder" required maxlength="60" autocomplete="name" value="${a ? esc(a.holder) : ''}"></label>
+        <div class="err" id="bankErr" role="alert"></div>
+        <button class="btn primary block">Save bank account</button>
+      </form>
+      ${a ? '<button class="linkbtn block" data-act="cancelBank">Keep my current account</button>' : ''}
+      <p class="warn-text">Demo: nothing is checked. The real site confirms the account with your bank. Only the last 4 digits are kept.</p>`;
+    return;
+  }
+  const min = config.min_withdrawal_cents / 100;
+  box.innerHTML = `<p class="wd-avail">Available to withdraw <strong id="wdCan">${R(me.withdrawable_cents)}</strong></p>
+    ${me.unplayed_cents ? `<p class="warn-text" id="wdUnplayed">Money you put in must be bet once before it can be withdrawn. Still to bet: ${R(me.unplayed_cents)}.</p>` : ''}
+    <form id="wdReq">
+      <label class="field"><span>Amount (R) · minimum R${min}</span><input id="wdAmt" name="amount" type="number" inputmode="decimal" min="${min}" step="0.01" required></label>
+      <div class="chips"><button type="button" data-wq="100">R100</button><button type="button" data-wq="500">R500</button><button type="button" data-wq="all">All</button></div>
+      <div class="err" id="wdErr" role="alert"></div>
+      <button class="btn primary block" id="wdBtn">Withdraw to ${esc(a.bank)} ••${esc(a.last4)}</button>
+    </form>
+    <p class="warn-text">Up to R${(config.auto_approve_max_cents / 100).toLocaleString('en-ZA')} is approved automatically, day or night. Larger amounts are checked by a person first. <button class="linkbtn" data-act="changeBank">Change bank account</button></p>
+    ${wd.stats && wd.stats.count ? `<p class="warn-text" id="wdStats">Last 30 days: half of all withdrawals were paid within ${secs(wd.stats.median_seconds)}, and 95% within ${secs(wd.stats.p95_seconds)}${wd.stats.simulated ? ' (demo figures)' : ''}.</p>` : ''}
+    <p class="warn-text">Demo: no real money moves.</p>`;
+}
+function wdSteps(w) {                                               // where the money is, one line per step
+  const step = (label, at, state) => `<li class="${state}"><span>${label}</span>${at ? `<time>${clock(at)}</time>` : ''}</li>`;
+  const s = w.status, out = [step('Requested', w.created_at, 'done')];
+  if (s === 'review') out.push(step('Being checked by a person', null, 'now'));
+  else if (s === 'declined') return out.concat(step('Declined after a check', w.closed_at, 'bad')).join('');
+  else out.push(step(w.auto ? 'Approved automatically' : 'Approved after a check', w.approved_at, 'done'));
+  // a step that is still happening says so; it only reads as done once it is
+  out.push(step(s === 'approved' ? 'Sending to your bank' : 'Sent to your bank', w.sent_at, w.sent_at ? 'done' : s === 'approved' ? 'now' : 'todo'));
+  if (s === 'failed') out.push(step('Rejected by your bank', w.closed_at, 'bad'));
+  else out.push(step(s === 'paid' ? `Paid in ${secs(Math.round((w.paid_at - w.created_at) / 1000))}` : s === 'sent' ? 'Arriving in your account' : 'Paid', w.paid_at, s === 'paid' ? 'done' : s === 'sent' ? 'now' : 'todo'));
+  return out.join('');
+}
+function drawWdList() {
+  const box = $('#wdList'); if (!box) return;
+  box.innerHTML = !wd.list.length ? '' : '<h3 class="sub">Your withdrawals</h3>' + wd.list.slice(0, 5).map(w => `<article class="wd ${w.status}" data-wd="${w.id}">
+      <header><strong>${R(w.amount_cents)}</strong><span class="wd-to">to ${esc(w.bank)} ••${esc(w.last4)}</span><span class="tag ${w.status}">${WD_LABEL[w.status]}</span></header>
+      <ol class="track">${wdSteps(w)}</ol>
+      ${w.status === 'failed' || w.status === 'declined' ? `<p class="msg error">${esc(w.reason)}</p>` : ''}
+      ${w.status === 'review' ? `<p class="warn-text">${esc(w.reason)}.</p>${me.demo ? `<p class="demo-note">Demo only: <button class="linkbtn" data-rev="${w.id}" data-ok="1">approve it</button> or <button class="linkbtn" data-rev="${w.id}" data-ok="0">decline it</button></p>` : ''}` : ''}
+    </article>`).join('');
+}
+function pollWd() {                                                 // follow payouts while one is in progress and the dialog is open
+  stopWdPoll();
+  if (!wd.list.some(w => WD_ACTIVE.includes(w.status))) return;
+  wd.timer = setInterval(async () => {
+    if ($('#modal').hidden || !$('#wdList')) return stopWdPoll();
+    const r = await api('GET', '/withdrawals'); if (!r.ok || !$('#wdList')) return;
+    const was = wd.list; wd.list = r.data.withdrawals;
+    if (was.map(w => w.status).join() === wd.list.map(w => w.status).join()) return;      // nothing moved
+    drawWdList();
+    const finished = wd.list.some(w => !WD_ACTIVE.includes(w.status) && WD_ACTIVE.includes((was.find(x => x.id === w.id) || {}).status));
+    if (finished) {                                                 // balance, payout times and (if money came back) the amount available may have changed
+      const [m, st] = await Promise.all([api('GET', '/me'), api('GET', '/payout-stats')]);
+      if (m.ok && m.data.user) { setMe(m.data); renderAcct(); } if (st.ok) wd.stats = st.data;
+      const typing = document.activeElement && ['wdAmt', 'bankForm'].some(id => document.activeElement.closest('#' + id)) && document.activeElement.value;
+      if (!typing) drawWdForm();
+    }
+    if (!wd.list.some(w => WD_ACTIVE.includes(w.status))) stopWdPoll();
+  }, 1500);
+}
+async function saveBank(form) {
+  const f = new FormData(form), btn = form.querySelector('button'); btn.disabled = true;
+  const r = await api('PUT', '/payout-account', { bank: f.get('bank'), account_number: String(f.get('account_number')).trim(), holder: String(f.get('holder')).trim() });
+  if (!r.ok) { btn.disabled = false; const e = $('#bankErr'); if (e) e.textContent = r.data.message || 'Could not save the bank account.'; return; }
+  setMe(r.data); wd.editBank = false; drawWdForm(); const amt = $('#wdAmt'); if (amt) amt.focus();
+}
+async function requestWithdrawal() {
+  if (wd.busy) return;
+  const cents = Math.round(Number($('#wdAmt').value) * 100);
+  wd.busy = true; $('#wdBtn').disabled = true;
+  const r = await api('POST', '/withdrawals', { amount_cents: cents });
+  wd.busy = false;
+  if (!r.ok) { const b = $('#wdBtn'), e = $('#wdErr'); if (b) b.disabled = false; if (e) e.textContent = r.data.message || 'Could not start the withdrawal.'; return; }
+  setMe(r.data); renderAcct(); wd.list.unshift(r.data.withdrawal); drawWdForm(); drawWdList(); pollWd();
+}
+
 const gs = { id: null, stake: 10, spinning: false };
 function openGame(id) {
   const g = games.find(x => x.id === id); if (!g) return;
@@ -411,6 +514,11 @@ document.addEventListener('click', async e => {
   if (d.dep) return deposit(Number(d.dep));
   if (d.month) return openSpending(d.month);
   if (d.break) { breakPick = Number(d.break); return redrawLimits(); }
+  if (d.wq) { const i = $('#wdAmt'); if (i) { i.value = d.wq === 'all' ? (me.withdrawable_cents / 100).toFixed(2) : d.wq; i.focus(); } return; }
+  if (d.rev) {                                                      // demo stand-in for the person who checks large withdrawals
+    const r = await api('POST', '/withdrawals/review-demo', { id: Number(d.rev), approve: d.ok === '1' }); if (!r.ok) return;
+    setMe(r.data); renderAcct(); wd.list = wd.list.map(w => (w.id === r.data.withdrawal.id ? r.data.withdrawal : w)); drawWdList(); drawWdForm(); return pollWd();
+  }
   if (d.gstake) { gs.stake = Number(d.gstake); $$('#gq button').forEach(b => b.classList.toggle('on', b.dataset.gstake === d.gstake)); const sp = $('#gspin'); if (sp && me) sp.textContent = `Spin · R${gs.stake}`; return; }
   if (d.game) return openGame(d.game);
   switch (d.act) {
@@ -420,6 +528,9 @@ document.addEventListener('click', async e => {
     case 'limits': return openLimits();
     case 'statement': return openStatement();
     case 'spending': return openSpending();
+    case 'withdraw': return openWithdraw();
+    case 'changeBank': wd.editBank = true; return drawWdForm();
+    case 'cancelBank': wd.editBank = false; return drawWdForm();
     case 'saveLimit': {
       const r = await api('PUT', '/limits', { deposit_limit_cents: Math.round((Number($('#lim').value) || 0) * 100) });
       if (!r.ok) return redrawLimits(null, r.data.message || 'Could not save the limit.');
@@ -445,6 +556,8 @@ document.addEventListener('click', async e => {
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (!$('#modal').hidden) closeModal(); else if (ui.slipOpen) { ui.slipOpen = false; renderSlip(); } } });
 document.addEventListener('input', e => { if (e.target.id === 'stake') { ui.stake = e.target.value; ui.msg = null; const m = $('#slip .msg'); if (m) m.remove(); updateTotals(); } });
 document.addEventListener('submit', async e => {
+  if (e.target.id === 'bankForm') { e.preventDefault(); return saveBank(e.target); }
+  if (e.target.id === 'wdReq') { e.preventDefault(); return requestWithdrawal(); }
   if (e.target.id !== 'authForm') return; e.preventDefault();
   const f = new FormData(e.target), reg = e.target.dataset.mode === 'register';
   const body = { username: f.get('username').trim(), password: f.get('password') };

@@ -186,6 +186,33 @@ fieldset.limit-pick legend{font-size:13px;color:var(--muted);margin-bottom:6px;p
 .kv dt{color:var(--muted)}
 .kv dd{margin:0;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
 
+/* ---------- withdrawals ---------- */
+.field select{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:#0e1730;color:var(--text);font:inherit;font-size:16px}
+.wd-avail{font-size:16px;margin:4px 0 8px}
+.wd-avail strong{color:var(--accent);font-size:20px;white-space:nowrap}
+.sub{font-size:14px;color:var(--muted);margin:18px 0 8px}
+.wd{background:var(--panel2);border-radius:12px;padding:12px;margin-bottom:10px;border-left:4px solid var(--accent)}
+.wd.paid{border-color:var(--win)}
+.wd.failed,.wd.declined{border-color:var(--danger)}
+.wd header{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.wd-to{color:var(--muted);font-size:13px;margin-right:auto}
+.wd .msg{margin:8px 0 0}
+.wd .warn-text,.wd .demo-note{margin:8px 0 0;text-align:left}
+.tag.paid{background:var(--win);color:var(--ink)}
+.tag.failed,.tag.declined{background:var(--danger);color:#fff}
+.track{list-style:none;margin:0;padding:0}
+.track li{position:relative;display:flex;justify-content:space-between;gap:10px;padding:4px 0 4px 26px;color:var(--muted);font-size:14px}
+.track li::before{content:'';position:absolute;left:3px;top:7px;width:12px;height:12px;border-radius:50%;border:2px solid var(--line);background:var(--panel)}
+.track li:not(:last-child)::after{content:'';position:absolute;left:8px;top:21px;bottom:-7px;width:2px;background:var(--line)}
+.track li.done{color:var(--text)}
+.track li.done::before{background:var(--win);border-color:var(--win)}
+.track li.done:not(:last-child)::after{background:var(--win)}
+.track li.now{color:var(--text);font-weight:700}
+.track li.now::before{background:var(--accent);border-color:var(--accent);animation:pulse 1.2s infinite}
+.track li.bad{color:var(--danger);font-weight:700}
+.track li.bad::before{background:var(--danger);border-color:var(--danger)}
+.track time{font-variant-numeric:tabular-nums;color:var(--muted);font-weight:400}
+
 /* ---------- footer, modal, toast ---------- */
 .foot{max-width:1120px;margin:8px auto 24px;padding:16px;color:var(--muted);font-size:13px;border-top:1px solid var(--line)}
 .foot strong{color:var(--text)}

@@ -10,7 +10,7 @@ const results = []; const check = (name, ok, extra = '') => { results.push(ok); 
 
 (async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ab-e2e-'));
-  const srv = spawn('node', ['--disable-warning=ExperimentalWarning', path.join(__dirname, '../server/server.js')], { env: { ...process.env, PORT, DB_PATH: path.join(dir, 'e2e.db') }, stdio: 'ignore' });
+  const srv = spawn('node', ['--disable-warning=ExperimentalWarning', path.join(__dirname, '../server/server.js')], { env: { ...process.env, PORT, DB_PATH: path.join(dir, 'e2e.db'), AUTO_APPROVE_MAX_CENTS: '20000', PAYOUT_SEND_MS: '600', PAYOUT_PAID_MS: '1200' }, stdio: 'ignore' });
   await new Promise(r => setTimeout(r, 1500));
   const browser = await chromium.launch(); const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } }); const p = await ctx.newPage();
   const problems = []; p.on('pageerror', e => problems.push('pageerror: ' + e.message));
@@ -88,7 +88,9 @@ const results = []; const check = (name, ok, extra = '') => { results.push(ok); 
     check('registration works: R1 000 play money, and the chosen R2 500 limit is saved', (await bal()) === 100000 && /1\D?000/.test(await p.textContent('.bal')) && (await api('GET', '/me')).d.deposit_limit_cents === 250000);
     check('slip pick survived logging in', (await p.locator('#slip .pick').count()) === 1);
     check('header after login is just: balance, Deposit, Account', (await p.locator('#acct button:visible').allTextContents()).join('|') === 'Deposit' && await p.locator('#acct .bal').isVisible() && (await p.textContent('#acct summary')) === 'Account');
-    await click('#acct summary'); await click('#menu [data-act=logout]'); await p.waitForSelector('#acct [data-act=login]');
+    await click('#acct summary');
+    check('Account menu: Withdraw, My spending, Limits & breaks, Log out', (await p.locator('#menu .menu-pop button').allTextContents()).join('|') === 'Withdraw|My spending|Limits & breaks|Log out');
+    await click('#menu [data-act=logout]'); await p.waitForSelector('#acct [data-act=login]');
     check('log out from the Account menu', (await api('GET', '/me')).d.user === null);
     await click('#acct [data-act=join]'); await fillAuth('hunter', 'correct horse', '1990-04-04', true);
     await p.waitForFunction(() => /taken/i.test(document.querySelector('#authErr').textContent)); check('duplicate username rejected (case-insensitive)', true);
@@ -183,6 +185,58 @@ const results = []; const check = (name, ok, extra = '') => { results.push(ok); 
     check('statement adds up to the balance', (await api('GET', '/ledger')).d.entries.reduce((s, e) => s + e.amount_cents, 0) === (await bal()));
     await click('footer [data-act=limits]'); check('footer "Responsible gambling" opens the same controls, with the helpline', /0800 006 008/.test(await p.textContent('#modalCard')) && (await p.locator('#lim').count()) === 1); await click('#modal [data-act=close]');
 
+    /* ---------- withdrawals ---------- */
+    const play = n => p.evaluate(async n => { for (let i = 0; i < n; i++) await fetch('/api/games/play', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ game: 'bear', stake_cents: 1000 }) }); }, n);
+    const openWithdraw = async () => { await click('#acct summary'); await click('#menu [data-act=withdraw]'); await p.waitForSelector('#wdForm > *'); };
+    await openWithdraw();
+    check('withdraw: first asks for a bank account (10 banks to choose from)', (await p.locator('#bankForm select option').count()) === 11 && (await p.locator('#wdReq').count()) === 0);
+    await p.selectOption('#bankForm select', 'Capitec'); await p.fill('#bankForm input[name=account_number]', '12ab'); await p.fill('#bankForm input[name=holder]', 'Hunter Mokoena'); await click('#bankForm button');
+    check('withdraw: a malformed account number cannot be sent', (await p.evaluate(() => document.querySelector('#bankForm').checkValidity())) === false && (await api('GET', '/me')).d.payout_account === null);
+    await p.fill('#bankForm input[name=account_number]', '1234567890'); await click('#bankForm button'); await p.waitForSelector('#wdReq');
+    const m1 = (await api('GET', '/me')).d;
+    check('withdraw: the account is saved and shown by its last 4 digits only', /Withdraw to Capitec ••7890/.test(await p.textContent('#wdBtn')) && !(await p.content()).includes('1234567890') && m1.payout_account.last4 === '7890');
+    check('withdraw: money not yet bet is held back, and the screen says how much', (await cents('#wdCan')) === m1.withdrawable_cents && m1.unplayed_cents > 0 && /Still to bet/.test(await p.textContent('#wdUnplayed')), `available ${m1.withdrawable_cents}, still to bet ${m1.unplayed_cents}`);
+    await p.fill('#wdAmt', String(Math.floor(m1.balance_cents / 100) - 1)); await click('#wdBtn'); await p.waitForFunction(() => document.querySelector('#wdErr').textContent.length > 0);
+    check('withdraw: asking for money that has not been bet is refused with the reason', /bet once/.test(await p.textContent('#wdErr')) && (await bal()) === m1.balance_cents && (await p.locator('.wd').count()) === 0);
+    await click('#modal [data-act=close]');
+    await play(Math.ceil(m1.unplayed_cents / 1000)); await p.reload(); await p.waitForSelector('.bal');       // bet the rest once (through the API, to save time)
+
+    await openWithdraw(); await p.waitForSelector('#wdReq');
+    const m2 = (await api('GET', '/me')).d;
+    check('withdraw: once it has been bet, the whole balance is available', m2.unplayed_cents === 0 && (await cents('#wdCan')) === m2.balance_cents && (await p.locator('#wdUnplayed').count()) === 0, `balance ${m2.balance_cents}`);
+    await click('[data-wq="100"]'); check('withdraw: a quick amount fills the field', (await p.inputValue('#wdAmt')) === '100');
+    await click('#wdBtn'); await p.waitForSelector('.wd');
+    check('R100: approved automatically, the balance drops at once and the tracker appears', (await bal()) === m2.balance_cents - 10000 && (await cents('.bal')) === m2.balance_cents - 10000 && /Approved automatically/.test(await p.textContent('.wd .track')) && /Sending to your bank|Sent to your bank/.test(await p.textContent('.wd .track')) && (await p.inputValue('#wdAmt')) === '');
+    await p.screenshot({ path: path.join(SHOTS, 'withdraw-in-progress.png') });
+    await p.waitForSelector('.wd.paid', { timeout: 15000 });
+    const paidTrack = await p.textContent('.wd.paid .track');
+    check('tracker: every step ticks off, ending in "Paid" with the time it took', (await p.locator('.wd.paid .track li.done').count()) === 4 && /Sent to your bank/.test(paidTrack) && /Paid in \d+ seconds?/.test(paidTrack) && /Paid/.test(await p.textContent('.wd.paid .tag')), paidTrack.replace(/\s+/g, ' ').trim());
+    await p.waitForSelector('#wdStats');
+    check('our real payout times are published on the withdraw screen', /Last 30 days: half of all withdrawals were paid within \d+ seconds?/.test(await p.textContent('#wdStats')));
+
+    await p.fill('#wdAmt', '250'); await click('#wdBtn'); await p.waitForSelector('.wd.review');
+    check('R250 (over the automatic amount in this test) waits for a person, and says so', /Being checked by a person/.test(await p.textContent('.wd.review .track')) && /over R200 are checked by a person/.test(await p.textContent('.wd.review')) && (await bal()) === m2.balance_cents - 35000);
+    await click('[data-act=changeBank]'); await p.selectOption('#bankForm select', 'FNB'); await p.fill('#bankForm input[name=account_number]', '62000011112'); await click('#bankForm button');
+    await p.waitForFunction(() => document.querySelector('#bankErr').textContent.length > 0);
+    check('the bank account is locked while a withdrawal is in progress', /once your current withdrawal has finished/.test(await p.textContent('#bankErr')) && (await api('GET', '/me')).d.payout_account.bank === 'Capitec');
+    await click('[data-act=cancelBank]'); await p.waitForSelector('#wdReq');
+    await p.waitForTimeout(2500); check('a withdrawal being checked does not move on by itself', (await p.locator('.wd.review').count()) === 1);
+    await click('.wd.review [data-ok="1"]'); await p.waitForFunction(() => document.querySelectorAll('.wd.paid').length === 2, null, { timeout: 15000 });
+    check('once approved by a person it is paid, and the record says so', /Approved after a check/.test(await p.textContent('.wd.paid >> nth=0')) && (await bal()) === m2.balance_cents - 35000);
+
+    await click('[data-act=changeBank]'); await p.selectOption('#bankForm select', 'Nedbank'); await p.fill('#bankForm input[name=account_number]', '5550000000'); await click('#bankForm button'); await p.waitForSelector('#wdReq');
+    check('the bank account can be changed when nothing is in progress', /Nedbank ••0000/.test(await p.textContent('#wdBtn')));
+    const b3 = await bal(); await p.fill('#wdAmt', '50'); await click('#wdBtn'); await p.waitForSelector('.wd.failed', { timeout: 15000 });
+    await p.waitForFunction(b => Number(document.querySelector('.bal').textContent.replace(/\D/g, '')) === b, b3);
+    check('a payout the bank rejects comes straight back, and the tracker says why', /Rejected by your bank/.test(await p.textContent('.wd.failed .track')) && /back in your balance/.test(await p.textContent('.wd.failed .msg')) && (await bal()) === b3 && (await cents('#wdCan')) === b3);
+    await p.screenshot({ path: path.join(SHOTS, 'withdraw-history.png') });
+    await click('#modal [data-act=close]');
+    await click('#acct summary'); await click('#menu [data-act=spending]'); await p.waitForSelector('#verdict');
+    check('My spending counts only the money that really left (R350)', (await cents('#spWithdrawn')) === 35000);
+    await click('#modal [data-act=statement]'); await p.waitForSelector('.stmt');
+    check('All transactions shows the withdrawals and the returned one', /Withdrawal #/.test(await p.textContent('.stmt')) && /Withdrawal returned #/.test(await p.textContent('.stmt')));
+    await click('#modal [data-act=close]');
+
     /* ---------- phone ---------- */
     await p.setViewportSize({ width: 390, height: 800 }); await nav('sports'); await p.waitForSelector('.ev'); await p.waitForTimeout(300);
     const geo = await p.evaluate(() => { const n = document.querySelector('#mainNav').getBoundingClientRect(); return { top: n.top, bottom: n.bottom, h: innerHeight, links: [...document.querySelectorAll('#mainNav a')].map(a => a.getBoundingClientRect().height) }; });
@@ -207,6 +261,10 @@ const results = []; const check = (name, ok, extra = '') => { results.push(ok); 
     check('phone: game dialog fits the screen', await p.evaluate(() => { const r = document.querySelector('#modalCard').getBoundingClientRect(); return r.width <= innerWidth && r.left >= 0 && r.bottom <= innerHeight; }));
     await click('#modal [data-act=close]');
 
+    await click('#acct summary'); await click('#menu [data-act=withdraw]'); await p.waitForSelector('#wdReq'); await p.waitForTimeout(200);
+    check('phone: the withdraw screen fits, with no sideways scrolling', await p.evaluate(() => { const r = document.querySelector('#modalCard').getBoundingClientRect(); return r.width <= innerWidth && r.left >= 0 && document.documentElement.scrollWidth <= innerWidth && document.querySelector('#modalCard').scrollWidth <= document.querySelector('#modalCard').clientWidth; }));
+    await p.screenshot({ path: path.join(SHOTS, 'phone-withdraw.png') }); await click('#modal [data-act=close]');
+
     /* ---------- taking a break (last: it cannot be undone) ---------- */
     await p.setViewportSize({ width: 1280, height: 900 }); await nav('sports'); await p.waitForSelector('.ev'); await odd(0, 0).click();
     await click('#acct summary'); await click('#menu [data-act=limits]'); await p.waitForSelector('#breakOpts');
@@ -222,6 +280,8 @@ const results = []; const check = (name, ok, extra = '') => { results.push(ok); 
     check('break: deposits are paused', /paused/.test(await p.textContent('#modalCard')) && (await p.locator('[data-dep]').count()) === 0); await click('#modal [data-act=close]');
     check('break: the server refuses deposits, bets and games as well', (await api('POST', '/deposit', { amount_cents: 10000 })).s === 403 && (await api('POST', '/games/play', { game: 'lion', stake_cents: 500 })).s === 403 && (await bal()) === balB);
     await nav('mybets'); check('break: the notice follows you to other pages', await p.locator('#notice').isVisible());
+    const bw = await bal(), wOnBreak = await api('POST', '/withdrawals', { amount_cents: 5000 });
+    check('break: you can still take your money out', wOnBreak.s === 201 && (await bal()) === bw - 5000);
     await p.setViewportSize({ width: 390, height: 800 }); await p.waitForTimeout(250);
     check('break: phone layout still has no sideways scrolling with the notice', await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     await p.screenshot({ path: path.join(SHOTS, 'phone-break.png') });

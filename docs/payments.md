@@ -57,5 +57,6 @@ No single provider or method reaches every bank; coverage comes from **combining
 
 ## Already in the code
 
-- `DEMO_MODE=false` turns off the demo deposit and simulated settlement.
+- `DEMO_MODE=false` turns off the demo deposit, simulated settlement and the simulated bank; deposits and withdrawals then answer "no payment provider" until one is connected.
+- **The withdrawal flow is built** (`server/withdrawals.js`): bank account, automatic approval up to R5 000, wallet debited on request, every step tracked, failed payouts returned. The provider replaces one function: on approval call its payout API with the withdrawal id as the idempotency key, and let its signed webhook mark the payout paid or failed.
 - **Casino-style games are demo-only:** `GAMES_ENABLED` defaults to the value of `DEMO_MODE`, so real-money mode has no games unless an owner explicitly sets `GAMES_ENABLED=true`.

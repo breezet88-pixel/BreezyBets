@@ -114,11 +114,13 @@ The improvement came from switching on compression, which the server was not usi
 
 | Order | Build | Gap it serves | Depends on |
 |---|---|---|---|
-| 1 | Limits chosen at sign-up, monthly spend statement, one-tap break | 4.2 | Nothing |
-| 2 | Withdrawal flow with automatic approval rules and a live tracker | 4.1 | Simulated until a payment provider is signed |
+| 1 | Limits chosen at sign-up, monthly spend statement, a break in two taps | 4.2 | Nothing. **Built.** |
+| 2 | Withdrawal flow with automatic approval rules and a live tracker | 4.1 | **Built**, with a simulated bank until a payment provider is signed |
 | 3 | Lighter live odds, aiming for under 0.3 MB an hour | 4.3 | Nothing |
 | 4 | Language switch | 4.4 | Native-speaker review |
 | 5 | Share a bet by WhatsApp link | Table stakes | Nothing |
+
+**Status, 16 November 2026:** builds 1 and 2 are done and tested. Two things from section 4.1 are deliberately not built yet: identity verification against Home Affairs (needs a verification provider) and compensation for a late payout (a business decision best made once real payout times are known).
 
 In parallel, outside the code: start the Western Cape licence application, send the provider email in `docs/payments.md`, and ask three platform suppliers for quotes.
 

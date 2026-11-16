@@ -8,7 +8,7 @@ Grizzly Gold, Eagle Eye, Wolf Pack, Shark Frenzy) plus a sportsbook (PSL soccer,
 Requires Node 22.13+ (zero npm dependencies; uses built-in `node:sqlite`).
 
 ```
-npm start          # http://localhost:3000   (PORT, DB_PATH, DEMO_MODE=false, GAMES_ENABLED, NODE_ENV=production are supported)
+npm start          # http://localhost:3000   (also: PORT, DB_PATH, DEMO_MODE=false, GAMES_ENABLED, LIMIT_COOLOFF_HOURS, AUTO_APPROVE_MAX_CENTS, NODE_ENV=production)
 npm test           # API, wallet-ledger, game-RTP and hardening tests (no browser needed)
 npm run e2e        # browser end-to-end run (needs Playwright installed: drives every page, all 6 games, bets, deposits, mobile)
 ```
@@ -21,6 +21,7 @@ npm run e2e        # browser end-to-end run (needs Playwright installed: drives 
   login/sign-up rate limiting, server-side 18+ check.
 - `server/games.js` – the six games: CSPRNG outcomes, exact RTP (~95%) verified in tests.
 - `server/safety.js` – player protection: limit changes with a cooling-off period, breaks, the monthly statement, and the play-through rule.
+- `server/withdrawals.js` – bank account, automatic approval rules, ledger movements and the simulated bank. The header comment says exactly what a real payment provider replaces.
 - `server/server.js` – JSON API + static hosting with a strict CSP; text responses are gzipped (first visit about 18 KB, an hour of live odds about 1 MB).
 - `public/` – the browser app (display only; no odds, balances or RNG in the browser).
 
@@ -41,6 +42,14 @@ npm run e2e        # browser end-to-end run (needs Playwright installed: drives 
   - lowering a limit applies at once, raising or removing it waits 24 hours (`LIMIT_COOLOFF_HOURS`) and can be cancelled;
   - a break of 24 hours, 7 days or 30 days pauses deposits, bets and games, cannot be ended early, and is shown on every page;
   - **My spending**: a plain monthly statement (staked, got back, deposited, withdrawn, "you are down/up R…") read straight from the ledger.
+- **Withdrawals with a live tracker** (see `server/withdrawals.js`; the bank side is simulated until a payment provider is connected):
+  - one bank account per player, only its last four digits stored, locked while a payout is in progress;
+  - money put in must be bet once before it can be withdrawn; winnings always can; the screen shows exactly how much is available and why;
+  - up to R5 000 (`AUTO_APPROVE_MAX_CENTS`) is approved automatically, day or night; larger amounts wait for a person;
+  - the wallet is debited the moment a withdrawal is requested, and every step (requested, approved, sent, paid) is timed and shown;
+  - a payout the bank rejects, or one that is declined, comes straight back to the wallet with the reason;
+  - request-to-paid times for the last 30 days are published on the withdraw screen (`/api/payout-stats`);
+  - a player on a break can still withdraw.
 - Responsible-gambling footer and SARGF helpline (0800 006 008)
 - Responsive: phone layout with bottom navigation and a bet-slip sheet
 
