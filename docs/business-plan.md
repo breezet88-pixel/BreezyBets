@@ -3,24 +3,28 @@
 > **How to use this.** This is a working draft. Everything in **[SQUARE BRACKETS]** needs a real answer from you or your accountant; everything else is written and describes the business and platform as actually built. It is written for a Western Cape Gambling and Racing Board (WCGRB) online bookmaker licence application. It is **not** legal or financial advice — have your gambling lawyer and accountant review and finalise it before filing. The first enquiry email to the board does **not** need the full plan; this is the document the application itself will require, and a one-paragraph summary of it can go in the email.
 >
 > **Status note for honesty:** the platform today is a play-money demonstration. This plan describes the intended **licensed, real-money** operation and the steps required to get there. The betting system must pass SANS 1718 certification before any real money is taken; our own code is not yet certified.
+>
+> **Two realities to resolve before any money is spent (as at this draft):**
+> 1. **No funding is secured yet.** A real-money bookmaker holds customers' money and must be able to pay out winners on demand, and the application itself costs tens of thousands of rand before any of that. Funding is the first thing to solve — see section 8.
+> 2. **Location vs. licensing province.** The owner is based in Gauteng; no business premises exist yet. The province to apply in (and whether an office is required) is an open decision — see sections 2 and 9 and the board email in `docs/licence.md`.
 
 ---
 
 ## 1. Executive summary
 
-ApexBets will be an online fixed-odds **sports and racing bookmaker** serving customers across South Africa, operated by **[REGISTERED COMPANY NAME] (Pty) Ltd** under a bookmaker licence from the Western Cape Gambling and Racing Board. The business offers betting on local and international sport (soccer including the PSL, rugby, cricket, tennis and basketball) through a mobile-first website, in English. It does **not** offer online casino games, which remain unlawful in South Africa.
+ApexBets will be an online fixed-odds **sports and racing bookmaker** serving customers across South Africa, operated by **Apex Bets (Pty) Ltd** (to be registered) under a South African provincial bookmaker licence. The business offers betting on local and international sport (soccer including the PSL, rugby, cricket, tennis and basketball) through a mobile-first website, in English. It does **not** offer online casino games, which remain unlawful in South Africa.
 
 The platform has been built compliance-first: a double-entry wallet ledger that keeps player money separate from the business, server-side control of all odds and bets, identity-verification-ready registration, and responsible-gambling tools (deposit limits, self-imposed breaks, a plain monthly spending statement) built into sign-up rather than buried. The business will reach real-money operation only after: a bookmaker licence, SANS 1718 platform certification, a FICA/KYC provider, a licensed payment provider, and the required banking and compliance set-up.
 
-- **Legal entity:** [REGISTERED COMPANY NAME] (Pty) Ltd, registration [CIPC NUMBER], registered office [ADDRESS].
-- **Licence sought:** Western Cape bookmaker licence (online), plus the required premises and key-employee licences.
-- **Owners / directors:** [NAMES, ROLES, % HOLDINGS — see section 7].
-- **Start-up capital:** approximately **[AMOUNT] ZAR**, from **[SOURCE OF FUNDS]**.
-- **Target launch:** **[MONTH/YEAR]**, subject to licensing and certification.
+- **Legal entity:** Apex Bets (Pty) Ltd — **not yet registered**; to be incorporated at CIPC. Registered office: owner's address in Gauteng [CONFIRM FULL ADDRESS], until business premises are secured.
+- **Licence sought:** a provincial online bookmaker licence, plus the required premises and key-employee licences. **Province still to be decided** — Western Cape (licence-on-demand, often the most accessible for online) vs. Gauteng (the owner's home province). To be settled with the lawyer and the board.
+- **Owner / director:** Breeze Thulani Kobola — sole owner and director (100%). **100% black-owned.**
+- **Start-up capital:** **none secured yet** — the primary gap to close before the application can proceed (see section 8).
+- **Target launch:** to be set once funding and the licensing route are in place; subject to licensing and certification.
 
 ## 2. The business and its purpose
 
-- **Trading name:** ApexBets.
+- **Trading name:** Apex Bets.
 - **What it does:** takes fixed-odds bets on sport and racing, online only, from customers aged 18+ who pass FICA identity verification.
 - **Why it exists / positioning:** a simpler, faster, more transparent sportsbook than the incumbents — a bet in three taps, clear withdrawals paid quickly with a visible tracker, deposit limits chosen at sign-up, and a plain "this month you are up/down R…" statement. (The competitive reasoning is in `docs/competitive-analysis.md`.)
 - **Language:** English only.
@@ -62,17 +66,21 @@ Compliance is built into the product, not added on:
 
 ## 7. Ownership and management
 
-- **Shareholders:** [FILL: each owner, % holding, ID/passport, nationality and residency. The board does a probity check on anyone holding 5%+.]
-- **B-BBEE:** [FILL: current status / intended ownership structure — discuss with the lawyer; it affects the application.]
-- **Directors / key people:** [FILL: names, roles, relevant experience. Key staff need their own key-employee licences.]
+- **Shareholder:** Breeze Thulani Kobola, 100%, South African [CONFIRM ID NUMBER]. As sole 5%+ holder, the owner will undergo the board's probity check (criminal record, tax, solvency, source of funds).
+- **B-BBEE:** 100% black-owned by a single South African individual. This is a genuine strength: as an Exempt Micro Enterprise (turnover under R10m) a 100% black-owned business is typically a B-BBEE Level 1 contributor on an affidavit, with no costly verification. Confirm the current thresholds with the lawyer/accountant.
+- **Director / key person:** Breeze Thulani Kobola [FILL: relevant experience]. Any additional key staff hired will need their own key-employee licences.
 - **Compliance officer:** [FILL: who is responsible for FICA/RG/POPIA compliance.]
 
 ## 8. Financial plan
 
 > Fill this section with your accountant. Do not use invented figures in a regulatory document.
 
-- **Start-up costs:** licence fees (~R16,343 application + R31,982 refundable deposit + ~R16,400/year, per current WCGRB guidance), legal fees [QUOTE], platform build/certification [QUOTE], data feed [QUOTE], payment integration, hosting, working capital to cover early payouts. **Total: [FILL].**
-- **Funding:** [FILL: how much, from whom, proof of source of funds — the board requires this.]
+- **Start-up costs:** licence fees (~R16,343 application + R31,982 refundable deposit + ~R16,400/year, per current WCGRB guidance), legal fees [QUOTE], platform build/certification [QUOTE], data feed [QUOTE], payment integration, hosting, working capital to cover early payouts (enough to pay winners even on a losing day). **Total: [FILL — realistically well into six figures of rand; get real quotes].**
+- **Funding:** **none secured yet.** This must be solved first. Realistic options:
+  - bring in an investor or partner who puts up the capital (they would then also face the board's probity check as a 5%+ holder);
+  - save toward the costs over time and apply when funded;
+  - start much smaller and build the operating track record and relationships while funding is arranged.
+  The board requires documented proof of the source of whatever funds are used, so the money must be clean and traceable.
 - **Revenue model:** gross gaming revenue = stakes received minus winnings paid, from the margin built into the odds (around 6% on the main markets).
 - **Costs against revenue:** provincial betting levy (~6–9% of GGR), 15% VAT, company income tax, ~0.1% responsible-gambling contribution, payment and platform fees, staff. (See `docs/operator-payouts.md`.)
 - **Projections:** [FILL WITH ACCOUNTANT: customers, average stake, monthly turnover, GGR, break-even — 12–36 month view. Keep assumptions explicit.]
