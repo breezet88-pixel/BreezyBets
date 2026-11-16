@@ -19,6 +19,9 @@ const MIN_STAKE = 500, MAX_STAKE = 500000, MAX_LEGS = 12;          // cents
 const MIN_GAME_STAKE = 100, MAX_GAME_STAKE = 50000;                // R1 – R500 per round
 const MIN_DEPOSIT = 1000, MAX_DEPOSIT = 500000, WELCOME_BONUS = 100000;
 
+// A shared bet travels as /?bet=<event>-<market>-<selection>_<...>: letters and digits only, at most MAX_LEGS picks.
+const SHARE_CODE = /^[A-Za-z0-9]+-[A-Za-z0-9]+-[A-Za-z0-9]+(_[A-Za-z0-9]+-[A-Za-z0-9]+-[A-Za-z0-9]+){0,11}$/;
+const OG_DEFAULT = 'Simple sports betting for South Africa. Play-money demo. 18+.';   // must match the og:description in public/index.html
 const MAX_LIMIT = 100000000;                                       // R1 million: a sanity cap on a daily deposit limit
 // A daily deposit limit is either 0 (the player chose "no limit") or at least one minimum deposit.
 const validLimit = v => Number.isInteger(v) && (v === 0 || (v >= MIN_DEPOSIT && v <= MAX_LIMIT));
@@ -173,7 +176,7 @@ export function createApp({ dbPath = process.env.DB_PATH || './data/apexbets.db'
       const bets = db.prepare('SELECT * FROM bets WHERE user_id=? ORDER BY id DESC LIMIT 100').all(user.id);
       const legs = db.prepare('SELECT * FROM bet_legs WHERE bet_id=? ORDER BY id');
       return [200, { bets: bets.map(b => ({ id: b.id, type: b.type, stake_cents: b.stake_cents, odds: b.odds, status: b.status, payout_cents: b.payout_cents, created_at: b.created_at,
-        legs: legs.all(b.id).map(l => ({ label: l.label, match: l.match, odds: l.odds, result: l.result })) })) }];
+        legs: legs.all(b.id).map(l => ({ ev: l.event_id, mk: l.market, k: l.sel, label: l.label, match: l.match, odds: l.odds, result: l.result })) })) }];
     },
 
     // DEMO ONLY: stands in for a results feed. Settles the caller's open bets randomly, weighted by odds.
@@ -284,12 +287,18 @@ export function createApp({ dbPath = process.env.DB_PATH || './data/apexbets.db'
   });
   const parseCookies = h => Object.fromEntries((h || '').split(';').map(c => c.trim().split(/=(.*)/s).slice(0, 2)).filter(p => p[0]));
 
-  async function serveStatic(res, pathname) {
+  async function serveStatic(res, pathname, query) {
     const rel = pathname === '/' ? 'index.html' : decodeURIComponent(pathname).replace(/^\/+/, '');
     const file = resolve(join(PUBLIC_DIR, rel));
     if (file !== PUBLIC_DIR && !file.startsWith(PUBLIC_DIR + sep)) return send(res, 403, 'Forbidden');
     try {
-      const data = await readFile(file);
+      let data = await readFile(file);
+      const code = rel === 'index.html' ? query.get('bet') : null;
+      if (code && SHARE_CODE.test(code)) {
+        // Only a count goes into the page, never the text of the link itself.
+        const n = code.split('_').length;
+        data = data.toString().replace(OG_DEFAULT, `${n} pick${n > 1 ? 's' : ''} shared with you. Open to add ${n > 1 ? 'them' : 'it'} to your bet slip and choose your own stake. 18+.`);
+      }
       send(res, 200, data, { 'Content-Type': MIME[extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
     } catch { send(res, 404, 'Not found', { 'Content-Type': 'text/plain' }); }
   }
@@ -300,7 +309,7 @@ export function createApp({ dbPath = process.env.DB_PATH || './data/apexbets.db'
       const url = new URL(req.url, 'http://x');
       if (!url.pathname.startsWith('/api/')) {
         if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'Method not allowed');
-        return await serveStatic(res, url.pathname);
+        return await serveStatic(res, url.pathname, url.searchParams);
       }
       withdrawals.advance();                                  // bring payouts up to date before answering anything
       const handler = routes[`${req.method} ${url.pathname}`];
