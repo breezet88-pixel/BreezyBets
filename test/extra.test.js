@@ -15,7 +15,7 @@ const caller = base => { let cookie = ''; return async (method, path, body) => {
   const r = await fetch(base + path, { method, headers: { 'Content-Type': 'application/json', ...(cookie ? { Cookie: cookie } : {}) }, body: body ? JSON.stringify(body) : undefined });
   const sc = r.headers.get('set-cookie'); if (sc) cookie = sc.split(';')[0];
   return { status: r.status, body: await r.json().catch(() => null) }; }; };
-const NEW = { username: 'Tester', password: 'correct horse', dob: '1990-01-01', terms: true };
+const NEW = { username: 'Tester', password: 'correct horse', dob: '1990-01-01', terms: true, deposit_limit_cents: 0 };
 
 test('data-light: text responses are gzipped on request, images are not, and the content is unchanged', async () => {
   const { base } = await start({ dbPath: ':memory:' });
@@ -45,7 +45,7 @@ test('DEMO_MODE=false disables deposits and simulated settlement', async () => {
   const me = await c('POST', '/api/register', NEW); assert.equal(me.body.demo, false);
   assert.equal((await c('POST', '/api/deposit', { amount_cents: 10000 })).status, 501);
   assert.equal((await c('POST', '/api/bets/settle-demo', {})).status, 404);
-  assert.equal((await c('GET', '/api/me')).body.balance_cents, 100000, 'balance unchanged');
+  assert.equal((await c('GET', '/api/me')).body.balance_cents, 0, 'real-money mode never hands out free credit, and nothing changed');
   app.server.close();
 });
 
@@ -118,13 +118,13 @@ test('sports: settlement win chance keeps the bookmaker margin (deterministic)',
 
 test('casino games are demo-only: off in real-money mode unless explicitly enabled', async () => {
   const real = await start({ dbPath: ':memory:', demoMode: false }); let c = caller(real.base);
-  assert.deepEqual((await c('GET', '/api/config')).body, { demo: false, games: false });
+  let cfg = (await c('GET', '/api/config')).body; assert.equal(cfg.demo, false); assert.equal(cfg.games, false);
   assert.equal((await c('GET', '/api/games')).status, 404);
   await c('POST', '/api/register', NEW);
   assert.equal((await c('POST', '/api/games/play', { game: 'lion', stake_cents: 1000 })).status, 404);
-  assert.equal((await c('GET', '/api/me')).body.balance_cents, 100000, 'nothing was charged');
+  assert.equal((await c('GET', '/api/me')).body.balance_cents, 0, 'nothing was charged');
   const demo = await start({ dbPath: ':memory:' }); c = caller(demo.base);
-  assert.deepEqual((await c('GET', '/api/config')).body, { demo: true, games: true });
+  cfg = (await c('GET', '/api/config')).body; assert.equal(cfg.demo, true); assert.equal(cfg.games, true);
   assert.equal((await c('GET', '/api/games')).status, 200);
   const forced = await start({ dbPath: ':memory:', demoMode: false, gamesEnabled: true });   // GAMES_ENABLED=true is a deliberate owner decision
   assert.equal((await caller(forced.base)('GET', '/api/games')).status, 200);

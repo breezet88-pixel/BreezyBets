@@ -20,6 +20,7 @@ npm run e2e        # browser end-to-end run (needs Playwright installed: drives 
 - `server/auth.js` – scrypt password hashing, random session tokens (only SHA-256 hashes stored), HttpOnly + SameSite=Strict cookies,
   login/sign-up rate limiting, server-side 18+ check.
 - `server/games.js` – the six games: CSPRNG outcomes, exact RTP (~95%) verified in tests.
+- `server/safety.js` – player protection: limit changes with a cooling-off period, breaks, the monthly statement, and the play-through rule.
 - `server/server.js` – JSON API + static hosting with a strict CSP; text responses are gzipped (first visit about 18 KB, an hour of live odds about 1 MB).
 - `public/` – the browser app (display only; no odds, balances or RNG in the browser).
 
@@ -35,6 +36,11 @@ npm run e2e        # browser end-to-end run (needs Playwright installed: drives 
 - Bet slip: singles and multiples, stake presets, potential return, one selection per match in multiples
 - Real accounts (username + password), 18+ check, play-money deposits, daily deposit limit enforced on the server, wallet statement
 - My Bets with simulated settlement (`/api/bets/settle-demo`, disabled when `DEMO_MODE=false`)
+- **Staying in control** (see `server/safety.js`):
+  - every new player chooses a daily deposit limit at sign-up (including an explicit "No limit");
+  - lowering a limit applies at once, raising or removing it waits 24 hours (`LIMIT_COOLOFF_HOURS`) and can be cancelled;
+  - a break of 24 hours, 7 days or 30 days pauses deposits, bets and games, cannot be ended early, and is shown on every page;
+  - **My spending**: a plain monthly statement (staked, got back, deposited, withdrawn, "you are down/up R…") read straight from the ledger.
 - Responsible-gambling footer and SARGF helpline (0800 006 008)
 - Responsive: phone layout with bottom navigation and a bet-slip sheet
 

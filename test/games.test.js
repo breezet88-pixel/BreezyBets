@@ -34,7 +34,7 @@ test('playing: auth required, validation, wallet math, ledger balanced', async (
   const list = await call('GET', '/api/games'); assert.equal(list.body.games.length, 6);
   assert.ok(list.body.games.every(g => g.image.startsWith('/img/') && g.rtp > 93));
   assert.equal((await call('POST', '/api/games/play', { game: 'lion', stake_cents: 1000 })).status, 401);
-  const reg = await call('POST', '/api/register', { username: 'Hunter', password: 'correct horse', dob: '1985-03-03', terms: true });
+  const reg = await call('POST', '/api/register', { username: 'Hunter', password: 'correct horse', dob: '1985-03-03', terms: true, deposit_limit_cents: 0 });
   const ck = reg.cookie;
   assert.equal((await call('POST', '/api/games/play', { game: 'dragon', stake_cents: 1000 }, ck)).status, 400);
   assert.equal((await call('POST', '/api/games/play', { game: 'lion', stake_cents: 50 }, ck)).status, 400);

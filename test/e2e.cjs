@@ -28,7 +28,8 @@ const results = []; const check = (name, ok, extra = '') => { results.push(ok); 
   const nav = async name => { await click(`#mainNav a[data-nav=${name}]`); await p.waitForSelector(`#mainNav a[data-nav=${name}][aria-current=page]`); };
   const tab = async name => { await click(`.sport-tabs a[href="#/sports/${name}"]`); await p.waitForSelector(`.sport-tabs a[href="#/sports/${name}"][aria-current=page]`); };
   const odd = (row, i = 0) => p.locator('.ev').nth(row).locator('.odd').nth(i);
-  const fillAuth = async (u, pw, dob, terms) => { await p.fill('input[name=username]', u); await p.fill('input[name=password]', pw); if (dob) { await p.fill('input[name=dob]', dob); if (terms) await p.check('input[name=terms]'); } await click('#authForm button'); };
+  const fillAuth = async (u, pw, dob, terms, limit = '2500') => { await p.fill('input[name=username]', u); await p.fill('input[name=password]', pw); if (dob) { await p.fill('input[name=dob]', dob); await p.check(`input[name=limit][value="${limit}"]`); if (terms) await p.check('input[name=terms]'); } await click('#authForm button'); };
+  const cents = async sel => Number((await p.textContent(sel)).replace(/\D/g, ''));   // "R1 234,50" -> 123450
   // Place whatever is on the slip. If prices moved, the UI says so; like a user, look again and retry.
   const placeBet = async () => { for (let i = 0; i < 4; i++) { await click('#placeBtn'); await p.waitForSelector('.receipt, #slip .msg', { timeout: 8000 }); if (await p.locator('.receipt').count()) return 'ok'; const t = await p.textContent('#slip .msg'); if (!/changed/i.test(t)) return t; await p.waitForTimeout(300); } return 'prices kept changing'; };
 
@@ -72,12 +73,19 @@ const results = []; const check = (name, ok, extra = '') => { results.push(ok); 
     check('API refuses protected routes when logged out', (await api('GET', '/bets')).s === 401 && (await api('POST', '/games/play', { game: 'lion', stake_cents: 500 })).s === 401);
 
     /* ---------- accounts ---------- */
+    await click('footer [data-act=limits]');
+    check('logged out: "Responsible gambling" shows the helpline and asks you to log in', /0800 006 008/.test(await p.textContent('#modalCard')) && /Log in to set a deposit limit/.test(await p.textContent('#modalCard')));
+    await click('#modal [data-act=close]');
     await click('#acct [data-act=join]');
-    await fillAuth('kid', 'correct horse', new Date(Date.now() - 12 * 365 * 864e5).toISOString().slice(0, 10), true);
+    check('sign-up offers a daily deposit limit with nothing pre-selected', (await p.locator('input[name=limit]').count()) === 6 && (await p.locator('input[name=limit]:checked').count()) === 0);
+    await p.fill('input[name=username]', 'kid'); await p.fill('input[name=password]', 'correct horse');
+    await p.fill('input[name=dob]', new Date(Date.now() - 12 * 365 * 864e5).toISOString().slice(0, 10)); await p.check('input[name=terms]'); await click('#authForm button');
+    check('sign-up cannot be sent until a limit is chosen', (await p.evaluate(() => document.querySelector('#authForm').checkValidity())) === false && (await api('GET', '/me')).d.user === null);
+    await p.check('input[name=limit][value="2500"]'); await click('#authForm button');
     await p.waitForFunction(() => /18/.test(document.querySelector('#authErr').textContent)); check('under-18 registration rejected', true);
     await p.fill('input[name=dob]', '1990-04-04'); await p.fill('input[name=username]', 'Hunter'); await p.fill('input[name=password]', 'correct horse');
     await click('#authForm button'); await p.waitForSelector('.bal');
-    check('registration works, R1 000 play money', (await bal()) === 100000 && /1\D?000/.test(await p.textContent('.bal')));
+    check('registration works: R1 000 play money, and the chosen R2 500 limit is saved', (await bal()) === 100000 && /1\D?000/.test(await p.textContent('.bal')) && (await api('GET', '/me')).d.deposit_limit_cents === 250000);
     check('slip pick survived logging in', (await p.locator('#slip .pick').count()) === 1);
     check('header after login is just: balance, Deposit, Account', (await p.locator('#acct button:visible').allTextContents()).join('|') === 'Deposit' && await p.locator('#acct .bal').isVisible() && (await p.textContent('#acct summary')) === 'Account');
     await click('#acct summary'); await click('#menu [data-act=logout]'); await p.waitForSelector('#acct [data-act=login]');
@@ -146,18 +154,34 @@ const results = []; const check = (name, ok, extra = '') => { results.push(ok); 
     check('header balance matches the server after the games', (await p.textContent('.bal')).replace(/\D/g, '') === String(await bal()) && (await bal()) > 0, `net ${net}`);
 
     /* ---------- account menu: deposit, limit, statement ---------- */
-    await click('#acct summary'); await click('#menu [data-act=limits]'); await p.fill('#lim', '1500'); await click('[data-act=saveLimit]'); await toast(/saved/);
+    await click('#acct summary'); await click('#menu [data-act=limits]'); await p.waitForSelector('#limNow');
     check('Account menu closes after choosing an item', (await p.evaluate(() => document.querySelector('#menu').open)) === false);
+    check('Stay in control shows the limit chosen at sign-up', /2\D?500,00 a day/.test(await p.textContent('#limNow')));
+    await p.fill('#lim', '1500'); await click('[data-act=saveLimit]'); await p.waitForSelector('#limNote');
+    check('lowering the limit applies at once', /applies now/.test(await p.textContent('#limNote')) && /1\D?500,00 a day/.test(await p.textContent('#limNow')) && (await api('GET', '/me')).d.deposit_limit_cents === 150000);
+    await p.fill('#lim', '5000'); await click('[data-act=saveLimit]'); await p.waitForSelector('#limPending');
+    const pend = (await api('GET', '/me')).d;
+    check('raising the limit waits 24 hours: the old limit still applies and the change is shown', /1\D?500,00 a day/.test(await p.textContent('#limNow')) && /5\D?000,00 a day/.test(await p.textContent('#limPending')) && pend.deposit_limit_cents === 150000 && pend.pending_limit.cents === 500000 && pend.pending_limit.at > Date.now() + 23 * 36e5);
+    await click('[data-act=cancelLimit]'); await p.waitForFunction(() => !document.querySelector('#limPending'));
+    check('a pending increase can be cancelled', (await api('GET', '/me')).d.pending_limit === null);
+    await p.fill('#lim', '5'); await click('[data-act=saveLimit]'); await p.waitForFunction(() => document.querySelector('#limErr').textContent.length > 0);
+    check('a limit below the minimum deposit is refused with a reason', /at least R10/.test(await p.textContent('#limErr')) && (await api('GET', '/me')).d.deposit_limit_cents === 150000);
+    await click('#modal [data-act=close]');
     const d0 = await bal(); await click('#acct [data-act=deposit]'); await click('[data-dep="1000"]'); await toast(/added/);
     check('deposit within the limit works', (await bal()) === d0 + 100000);
     await click('#acct [data-act=deposit]'); await clearToast(); await click('[data-dep="1000"]'); await toast(/limit/);
     check('deposit over the daily limit is refused', (await bal()) === d0 + 100000); await click('#modal [data-act=close]').catch(() => {});
-    await click('#acct summary'); await click('#menu [data-act=statement]'); await p.waitForSelector('.stmt');
+    await click('#acct summary'); await click('#menu [data-act=spending]'); await p.waitForSelector('#verdict');
+    const st = (await api('GET', '/statement')).d;
+    check('My spending: this month in plain words, matching the server', (await cents('#spStaked')) === st.staked_cents && (await cents('#spReturned')) === st.returned_cents && (await cents('#spDeposited')) === st.deposited_cents && st.deposited_cents === 100000 && /^You are (down|up|even)/.test(await p.textContent('#verdict')), await p.textContent('#verdict'));
+    check('My spending explains the whole balance', (await bal()) === st.bonus_cents + st.deposited_cents - st.withdrawn_cents + st.result_cents);
+    await click('#modal [data-act=statement]'); await p.waitForSelector('.stmt');
     const txt = await p.textContent('.stmt');
-    check('wallet statement shows bonus, deposit, bet and game entries', /Welcome bonus/.test(txt) && /Deposit/.test(txt) && /Bet stake/.test(txt) && /Game stake/.test(txt));
+    check('All transactions lists bonus, deposit, bet and game entries', /Welcome bonus/.test(txt) && /Deposit/.test(txt) && /Bet stake/.test(txt) && /Game stake/.test(txt));
+    await click('#modal [data-act=spending]'); await p.waitForSelector('#verdict'); check('"Back to My spending" returns to the summary', (await p.locator('.stmt').count()) === 0);
     await click('#modal [data-act=close]');
     check('statement adds up to the balance', (await api('GET', '/ledger')).d.entries.reduce((s, e) => s + e.amount_cents, 0) === (await bal()));
-    await click('footer [data-act=limits]'); check('footer "Responsible gambling" shows the helpline', /0800 006 008/.test(await p.textContent('#modalCard'))); await click('#modal [data-act=close]');
+    await click('footer [data-act=limits]'); check('footer "Responsible gambling" opens the same controls, with the helpline', /0800 006 008/.test(await p.textContent('#modalCard')) && (await p.locator('#lim').count()) === 1); await click('#modal [data-act=close]');
 
     /* ---------- phone ---------- */
     await p.setViewportSize({ width: 390, height: 800 }); await nav('sports'); await p.waitForSelector('.ev'); await p.waitForTimeout(300);
@@ -182,6 +206,25 @@ const results = []; const check = (name, ok, extra = '') => { results.push(ok); 
     await p.evaluate(() => (location.hash = '#/games')); await p.waitForSelector('.gcard'); await click('[data-game=eagle]');
     check('phone: game dialog fits the screen', await p.evaluate(() => { const r = document.querySelector('#modalCard').getBoundingClientRect(); return r.width <= innerWidth && r.left >= 0 && r.bottom <= innerHeight; }));
     await click('#modal [data-act=close]');
+
+    /* ---------- taking a break (last: it cannot be undone) ---------- */
+    await p.setViewportSize({ width: 1280, height: 900 }); await nav('sports'); await p.waitForSelector('.ev'); await odd(0, 0).click();
+    await click('#acct summary'); await click('#menu [data-act=limits]'); await p.waitForSelector('#breakOpts');
+    check('break: three lengths offered, and nothing starts until one is chosen and confirmed', (await p.locator('#breakOpts button').allTextContents()).join('|') === '24 hours|7 days|30 days' && (await p.locator('[data-act=startBreak]').count()) === 0 && await p.locator('#notice').isHidden());
+    await click('[data-break="24"]'); await p.waitForSelector('[data-act=startBreak]');
+    check('break: the confirm button says exactly what will happen', /Start a 24-hour break/.test(await p.textContent('[data-act=startBreak]')));
+    const balB = await bal(); await click('[data-act=startBreak]'); await p.waitForSelector('#breakNow');
+    const meB = (await api('GET', '/me')).d;
+    check('break: starts, and is shown at the top of every page', meB.break_until > Date.now() + 23 * 36e5 && await p.locator('#notice').isVisible() && /on a break until/i.test(await p.textContent('#notice')));
+    await click('#modal [data-act=close]');
+    check('break: the bet slip is paused and says why', (await p.isDisabled('#placeBtn')) && /On a break/.test(await p.textContent('#placeBtn')) && /on a break until/i.test(await p.textContent('#slip .msg')));
+    await click('#acct [data-act=deposit]'); await p.waitForSelector('#modalCard .msg');
+    check('break: deposits are paused', /paused/.test(await p.textContent('#modalCard')) && (await p.locator('[data-dep]').count()) === 0); await click('#modal [data-act=close]');
+    check('break: the server refuses deposits, bets and games as well', (await api('POST', '/deposit', { amount_cents: 10000 })).s === 403 && (await api('POST', '/games/play', { game: 'lion', stake_cents: 500 })).s === 403 && (await bal()) === balB);
+    await nav('mybets'); check('break: the notice follows you to other pages', await p.locator('#notice').isVisible());
+    await p.setViewportSize({ width: 390, height: 800 }); await p.waitForTimeout(250);
+    check('break: phone layout still has no sideways scrolling with the notice', await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await p.screenshot({ path: path.join(SHOTS, 'phone-break.png') });
 
     /* ---------- real-money mode: no casino games ---------- */
     const PORT2 = PORT + 1000;

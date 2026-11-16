@@ -11,7 +11,10 @@ CREATE TABLE IF NOT EXISTS users (
   username TEXT NOT NULL UNIQUE COLLATE NOCASE,
   pass_hash TEXT NOT NULL,
   dob TEXT NOT NULL,
-  deposit_limit_cents INTEGER NOT NULL DEFAULT 0,   -- 0 = no limit
+  deposit_limit_cents INTEGER NOT NULL DEFAULT 0,   -- daily; 0 = no limit
+  deposit_limit_pending_cents INTEGER,              -- a requested looser limit, waiting out its cooling-off period
+  deposit_limit_pending_at INTEGER,                 -- when the pending limit takes effect
+  break_until INTEGER,                              -- betting and deposits are paused until then
   created_at INTEGER NOT NULL
 );
 
@@ -26,6 +29,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 CREATE TABLE IF NOT EXISTS ledger_txns (
   id INTEGER PRIMARY KEY,
   kind TEXT NOT NULL,            -- bonus | deposit | bet_stake | bet_payout | game_stake | game_win
+                                 -- | withdrawal | withdrawal_paid | withdrawal_returned
   user_id INTEGER REFERENCES users(id),
   ref TEXT,                      -- e.g. 'bet:42'
   created_at INTEGER NOT NULL
@@ -74,12 +78,48 @@ CREATE TABLE IF NOT EXISTS bet_legs (
   label TEXT NOT NULL, match TEXT NOT NULL, odds REAL NOT NULL,
   result TEXT                    -- won | lost once settled
 );
+
+-- The one bank account a player's withdrawals are paid to. Only the last 4 digits are kept.
+CREATE TABLE IF NOT EXISTS payout_accounts (
+  user_id INTEGER PRIMARY KEY REFERENCES users(id),
+  bank TEXT NOT NULL,
+  holder TEXT NOT NULL,
+  last4 TEXT NOT NULL,
+  verified INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS withdrawals (
+  id INTEGER PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  amount_cents INTEGER NOT NULL,
+  status TEXT NOT NULL,          -- review | approved | sent | paid | failed | declined
+  auto INTEGER NOT NULL,         -- 1 = approved by the automatic rules, 0 = checked by a person
+  bank TEXT NOT NULL, last4 TEXT NOT NULL,
+  reason TEXT,                   -- why it needed a check, failed or was declined
+  created_at INTEGER NOT NULL,
+  approved_at INTEGER, sent_at INTEGER, paid_at INTEGER,
+  closed_at INTEGER              -- when it reached paid, failed or declined
+);
+CREATE INDEX IF NOT EXISTS idx_withdrawals_user ON withdrawals(user_id, id);
+CREATE INDEX IF NOT EXISTS idx_withdrawals_status ON withdrawals(status);
 `;
+
+// Columns added after the first release. CREATE TABLE IF NOT EXISTS leaves an existing table alone,
+// so a database made by an older version gets them here, keeping all its data.
+const ADDED_COLUMNS = [
+  ['users', 'deposit_limit_pending_cents', 'INTEGER'],
+  ['users', 'deposit_limit_pending_at', 'INTEGER'],
+  ['users', 'break_until', 'INTEGER'],
+];
 
 export function openDb(path) {
   if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
   const db = new DatabaseSync(path);
   db.exec(SCHEMA);
+  for (const [table, column, type] of ADDED_COLUMNS) {
+    const has = db.prepare(`PRAGMA table_info(${table})`).all().some(c => c.name === column);
+    if (!has) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+  }
   return db;
 }
 

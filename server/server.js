@@ -8,6 +8,8 @@ import { createOddsEngine, winProbability } from './odds.js';
 import { WalletError, balance, userAccount, credit, debit, post, depositedToday } from './wallet.js';
 import { GAMES, gameById, publicGame, spin, evaluate } from './games.js';
 import { hashPassword, verifyPassword, createSession, userForToken, destroySession, ageFromDob, createLimiter, SESSION_TTL_MS } from './auth.js';
+import { HttpError, bad } from './errors.js';
+import { BREAK_HOURS, settleLimit, changeLimit, onBreak, startBreak, statement, currentMonth, isMonth } from './safety.js';
 
 const PUBLIC_DIR = resolve(fileURLToPath(new URL('../public', import.meta.url)));
 const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon' };
@@ -16,10 +18,12 @@ const MIN_STAKE = 500, MAX_STAKE = 500000, MAX_LEGS = 12;          // cents
 const MIN_GAME_STAKE = 100, MAX_GAME_STAKE = 50000;                // R1 – R500 per round
 const MIN_DEPOSIT = 1000, MAX_DEPOSIT = 500000, WELCOME_BONUS = 100000;
 
-class HttpError extends Error { constructor(status, code, message) { super(message || code); this.status = status; this.code = code; } }
-const bad = (msg, code = 'bad_request') => new HttpError(400, code, msg);
+const MAX_LIMIT = 100000000;                                       // R1 million: a sanity cap on a daily deposit limit
+// A daily deposit limit is either 0 (the player chose "no limit") or at least one minimum deposit.
+const validLimit = v => Number.isInteger(v) && (v === 0 || (v >= MIN_DEPOSIT && v <= MAX_LIMIT));
 
-export function createApp({ dbPath = process.env.DB_PATH || './data/apexbets.db', demoMode = process.env.DEMO_MODE !== 'false', gamesEnabled = process.env.GAMES_ENABLED ? process.env.GAMES_ENABLED === 'true' : demoMode, secureCookies = process.env.NODE_ENV === 'production', simulate = true, signupsPerHour = 10 } = {}) {
+export function createApp({ dbPath = process.env.DB_PATH || './data/apexbets.db', demoMode = process.env.DEMO_MODE !== 'false', gamesEnabled = process.env.GAMES_ENABLED ? process.env.GAMES_ENABLED === 'true' : demoMode, secureCookies = process.env.NODE_ENV === 'production', simulate = true, signupsPerHour = 10,
+  limitCoolOffMs = Number(process.env.LIMIT_COOLOFF_HOURS ?? 24) * 36e5 } = {}) {
   const db = openDb(dbPath);
   const odds = createOddsEngine();
   const loginLimiter = createLimiter(5, 15 * 60e3), signupLimiter = createLimiter(signupsPerHour, 60 * 60e3);
@@ -31,6 +35,8 @@ export function createApp({ dbPath = process.env.DB_PATH || './data/apexbets.db'
     balance_cents: balance(db, userAccount(u.id)),
     deposit_limit_cents: u.deposit_limit_cents,
     deposited_today_cents: depositedToday(db, u.id),
+    pending_limit: u.deposit_limit_pending_at ? { cents: u.deposit_limit_pending_cents, at: u.deposit_limit_pending_at } : null,
+    break_until: onBreak(u) ? u.break_until : null,
     demo: demoMode,
   });
   const cookieHeader = (token, maxAge) =>
@@ -45,19 +51,21 @@ export function createApp({ dbPath = process.env.DB_PATH || './data/apexbets.db'
     'POST /api/register': async ({ body, ip }) => {
       if (signupLimiter.blocked(ip)) throw new HttpError(429, 'rate_limited', 'Too many sign-ups, try later');
       signupLimiter.fail(ip);
-      const { username, password, dob, terms } = body;
+      const { username, password, dob, terms, deposit_limit_cents: limit } = body;
       if (!/^[A-Za-z0-9_]{3,24}$/.test(username || '')) throw bad('Username must be 3–24 letters, numbers or underscores');
       if (typeof password !== 'string' || password.length < 8 || password.length > 128) throw bad('Password must be 8–128 characters');
       const age = ageFromDob(dob); if (age === null || age > 120) throw bad('Enter a valid date of birth');
       if (age < 18) throw new HttpError(403, 'underage', 'You must be 18 or older to join');
       if (terms !== true) throw bad('You must accept the terms');
+      // Every new player makes an explicit choice, including the choice of no limit.
+      if (!validLimit(limit)) throw bad('Choose your daily deposit limit', 'limit_required');
       const pass_hash = await hashPassword(password);
       let user;
       try {
         user = tx(db, () => {
-          const { lastInsertRowid } = db.prepare('INSERT INTO users (username,pass_hash,dob,created_at) VALUES (?,?,?,?)').run(username, pass_hash, dob, Date.now());
+          const { lastInsertRowid } = db.prepare('INSERT INTO users (username,pass_hash,dob,deposit_limit_cents,created_at) VALUES (?,?,?,?,?)').run(username, pass_hash, dob, limit, Date.now());
           const id = Number(lastInsertRowid);
-          credit(db, id, 'bonus', 'house:demo_bonus', WELCOME_BONUS, 'welcome');
+          if (demoMode) credit(db, id, 'bonus', 'house:demo_bonus', WELCOME_BONUS, 'welcome');   // play money; real-money mode never creates money
           return db.prepare('SELECT * FROM users WHERE id=?').get(id);
         });
       } catch (e) { if (/UNIQUE/.test(e.message)) throw new HttpError(409, 'username_taken', 'Username already taken'); throw e; }
@@ -77,11 +85,11 @@ export function createApp({ dbPath = process.env.DB_PATH || './data/apexbets.db'
 
     'POST /api/logout': ({ token }) => { if (token) destroySession(db, token); return [200, { ok: true }, { 'Set-Cookie': cookieHeader('', 0) }]; },
     'GET /api/me': ({ user }) => [200, user ? me(user) : { user: null }],
-    'GET /api/config': () => [200, { demo: demoMode, games: gamesEnabled }],
+    'GET /api/config': () => [200, { demo: demoMode, games: gamesEnabled, break_hours: BREAK_HOURS, limit_cooloff_hours: limitCoolOffMs / 36e5, min_deposit_cents: MIN_DEPOSIT }],
     'GET /api/events': () => [200, { events: odds.snapshot() }],
 
     'POST /api/deposit': ({ user, body }) => {
-      need(user);
+      needActive(user);
       if (!demoMode) throw new HttpError(501, 'no_payment_provider', 'No payment provider configured');
       const amt = money(body.amount_cents, MIN_DEPOSIT, MAX_DEPOSIT, 'Deposit');
       return [200, tx(db, () => {
@@ -92,16 +100,31 @@ export function createApp({ dbPath = process.env.DB_PATH || './data/apexbets.db'
       })];
     },
 
+    // Lowering a limit applies at once. Raising or removing it waits out the cooling-off period.
     'PUT /api/limits': ({ user, body }) => {
       need(user);
       const v = body.deposit_limit_cents;
-      if (!Number.isInteger(v) || v < 0 || v > 100000000) throw bad('Invalid limit');
-      db.prepare('UPDATE users SET deposit_limit_cents=? WHERE id=?').run(v, user.id);
-      return [200, me({ ...user, deposit_limit_cents: v })];
+      if (!validLimit(v)) throw bad(`A daily limit must be at least R${MIN_DEPOSIT / 100}, or 0 for no limit`, 'bad_limit');
+      return [200, me(changeLimit(db, user, v, limitCoolOffMs))];
+    },
+
+    // A break pauses deposits, bets and games. It can be extended, never shortened. Withdrawals still work.
+    'POST /api/break': ({ user, body }) => {
+      need(user);
+      if (!BREAK_HOURS.includes(body.hours)) throw bad('Choose a break of 24 hours, 7 days or 30 days', 'bad_break');
+      return [200, me(startBreak(db, user, body.hours))];
+    },
+
+    // The plain monthly statement: money in, money out, result of play.
+    'GET /api/statement': ({ user, query }) => {
+      need(user);
+      const month = query.get('month') || currentMonth();
+      if (!isMonth(month)) throw bad('month must look like 2026-11', 'bad_month');
+      return [200, statement(db, user.id, month)];
     },
 
     'POST /api/bets': ({ user, body }) => {
-      need(user);
+      needActive(user);
       const sels = body.selections;
       if (!Array.isArray(sels) || !sels.length || sels.length > MAX_LEGS) throw bad(`Choose 1–${MAX_LEGS} selections`);
       if (!['single', 'multi'].includes(body.type)) throw bad('type must be single or multi');
@@ -172,7 +195,7 @@ export function createApp({ dbPath = process.env.DB_PATH || './data/apexbets.db'
 
     'POST /api/games/play': ({ user, body }) => {
       if (!gamesEnabled) throw new HttpError(404, 'not_found', 'Not found');
-      need(user);
+      needActive(user);
       const g = gameById(body.game); if (!g) throw bad('Unknown game', 'unknown_game');
       const stake = money(body.stake_cents, MIN_GAME_STAKE, MAX_GAME_STAKE, 'Stake');
       return [200, tx(db, () => {
@@ -195,6 +218,7 @@ export function createApp({ dbPath = process.env.DB_PATH || './data/apexbets.db'
   };
   const DUMMY_HASH = 'scrypt$' + '00'.repeat(16) + '$' + '00'.repeat(64);
   function need(u) { if (!u) throw new HttpError(401, 'unauthenticated', 'Please log in'); }
+  function needActive(u) { need(u); if (onBreak(u)) throw new HttpError(403, 'on_break', 'You are on a break. Betting and deposits are paused until it ends.'); }
 
   /* ---- http plumbing ---- */
   const SECURITY = {
@@ -252,7 +276,9 @@ export function createApp({ dbPath = process.env.DB_PATH || './data/apexbets.db'
         if (typeof body !== 'object' || body === null || Array.isArray(body)) throw bad('Body must be a JSON object');
       }
       const token = parseCookies(req.headers.cookie)[COOKIE];
-      const [status, payload, headers] = await handler({ body, token, user: userForToken(db, token), ip: req.socket.remoteAddress });
+      let user = userForToken(db, token);
+      if (user) user = settleLimit(db, user);                 // a limit increase whose cooling-off has passed takes effect now
+      const [status, payload, headers] = await handler({ body, token, user, ip: req.socket.remoteAddress, query: url.searchParams });
       send(res, status, payload, headers);
     } catch (e) {
       if (e instanceof HttpError) return send(res, e.status, { error: e.code, message: e.message }, e.status === 413 ? { Connection: 'close' } : {});

@@ -16,7 +16,7 @@ const SPORTS = [
 ];
 
 /* ---------- state ---------- */
-let config = { demo: true, games: true };                           // what this server offers (real-money mode has no casino games)
+let config = { demo: true, games: true, break_hours: [24, 168, 720], limit_cooloff_hours: 24 };   // what this server offers (real-money mode has no casino games)
 let events = [], prevOdds = {}, me = null, bets = [], games = [], gameLimits = { min: 100, max: 50000 };
 const ui = { view: 'sports', sport: 'soccer', betsTab: 'open', slip: [], mode: 'multi', stake: DEFAULT_STAKE, slipOpen: false, busy: false, msg: null, receipt: null };
 let lastFocus = null;
@@ -41,6 +41,9 @@ function whenText(ms) {
   if (k === dayKey(Date.now() + 864e5)) return `Tomorrow ${hm(ms)}`;
   return new Date(ms).toLocaleDateString('en-ZA', { timeZone: TZ, weekday: 'short', day: 'numeric', month: 'short' }) + ' ' + hm(ms);
 }
+const fmtWhen = ms => new Date(ms).toLocaleDateString('en-ZA', { timeZone: TZ, weekday: 'short', day: 'numeric', month: 'short' }) + ', ' + hm(ms);
+const onBreak = () => !!(me && me.break_until && me.break_until > Date.now());
+const LIMIT_CHOICES = [100, 250, 500, 1000, 2500];                  // rand a day, offered at sign-up
 const findSel = (evId, mk, k) => {
   const e = events.find(x => x.id === evId), m = e && e.markets.find(x => x.key === mk), s = m && m.sels.find(x => x.k === k);
   return s ? { e, m, s } : null;
@@ -62,8 +65,11 @@ function renderAcct() {
     ? `<span class="bal" aria-label="Balance">${R(me.balance_cents)}</span>
        <button class="btn primary" data-act="deposit">Deposit</button>
        <details class="menu" id="menu"><summary>Account</summary><div class="menu-pop">
-         <button data-act="statement">Wallet statement</button><button data-act="limits">Deposit limit</button><button data-act="logout">Log out</button></div></details>`
+         <button data-act="spending">My spending</button><button data-act="limits">Limits &amp; breaks</button><button data-act="logout">Log out</button></div></details>`
     : '<button class="btn" data-act="login">Log in</button><button class="btn primary" data-act="join">Join</button>';
+  const notice = $('#notice'), brk = onBreak();                      // a break is shown on every page, not hidden in a menu
+  notice.hidden = !brk;
+  notice.innerHTML = brk ? `You're on a break until <strong>${esc(fmtWhen(me.break_until))}</strong>. Betting and deposits are paused.` : '';
 }
 function renderNav() {
   $$('#mainNav a').forEach(a => a.dataset.nav === ui.view ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current'));
@@ -147,7 +153,7 @@ function updateTotals() {                                          // update num
   if (!ui.slip.length || ui.receipt) return;
   const { total, ret, multi } = slipTotals(), set = (id, t) => { const el = $('#' + id); if (el) el.textContent = t; };
   set('retVal', R(ret)); set('stakeTot', R(total)); if (multi) set('oddsTot', totalOdds().toFixed(2));
-  const pb = $('#placeBtn'); if (pb && !ui.busy) pb.textContent = me ? `Place bet · ${R(total)}` : 'Log in to place bet';
+  const pb = $('#placeBtn'); if (pb && !ui.busy && !onBreak()) pb.textContent = me ? `Place bet · ${R(total)}` : 'Log in to place bet';
   $('#slipBarInfo').textContent = barInfo();
 }
 const barInfo = () => (isMulti() ? `Odds ${totalOdds().toFixed(2)} · ` : '') + 'View ›';
@@ -170,7 +176,9 @@ function renderSlip() {
     const mv = moveOf(`${x.ev}|${x.mk}|${x.k}`);
     return `<div class="pick" data-pick="${x.ev}"><div class="pick-main"><div class="pick-name">${esc(f.s.label)}</div><div class="pick-sub">${esc(f.m.name)} · ${esc(f.e.home)} v ${esc(f.e.away)}</div></div>
       <div class="pick-odds ${mv}">${f.s.odds.toFixed(2)}</div><button class="icon-btn" data-rm="${x.ev}" aria-label="Remove ${esc(f.s.label)}">✕</button></div>`; }).join('');
-  const msg = ui.msg ? `<div class="msg ${ui.msg.type}" role="alert">${esc(ui.msg.text)}${ui.msg.action === 'deposit' ? ' <button class="linkbtn" data-act="deposit">Deposit</button>' : ''}</div>` : '';
+  const brk = onBreak();
+  const msg = brk ? `<div class="msg warn" role="alert">You're on a break until ${esc(fmtWhen(me.break_until))}. You can place bets again after that.</div>`
+    : ui.msg ? `<div class="msg ${ui.msg.type}" role="alert">${esc(ui.msg.text)}${ui.msg.action === 'deposit' ? ' <button class="linkbtn" data-act="deposit">Deposit</button>' : ''}</div>` : '';
   s.innerHTML = head + `<div class="slip-b">
     ${n > 1 ? `<div class="seg" role="group" aria-label="Bet type"><button data-mode="multi" aria-pressed="${multi}">Multiple</button><button data-mode="single" aria-pressed="${!multi}">Singles</button></div>` : ''}
     ${rows}
@@ -179,7 +187,7 @@ function renderSlip() {
     <dl class="sum">${multi ? `<div><dt>Total odds</dt><dd id="oddsTot">${totalOdds().toFixed(2)}</dd></div>` : ''}${n > 1 && !multi ? `<div><dt>Total stake</dt><dd id="stakeTot">${R(total)}</dd></div>` : ''}
       <div class="ret"><dt>To return</dt><dd id="retVal">${R(ret)}</dd></div></dl>
     ${msg}
-    <button class="btn primary block" id="placeBtn" data-act="place" ${ui.busy ? 'disabled' : ''}>${ui.busy ? 'Placing…' : me ? `Place bet · ${R(total)}` : 'Log in to place bet'}</button></div>`;
+    <button class="btn primary block" id="placeBtn" data-act="place" ${ui.busy || brk ? 'disabled' : ''}>${brk ? 'On a break' : ui.busy ? 'Placing…' : me ? `Place bet · ${R(total)}` : 'Log in to place bet'}</button></div>`;
 }
 function patchSlip() {                                             // refresh prices without replacing the slip's buttons
   $$('#slip [data-pick]').forEach(row => {
@@ -240,42 +248,93 @@ async function place() {
   if (r.ok) { setMe(r.data); ui.receipt = { n: r.data.bet_ids.length, total }; resetSlip(); await loadBets(); syncSelected(); renderNav(); renderAcct(); renderSlip(); if (ui.view === 'mybets') renderContent(); return; }
   if (r.status === 409) { await loadEvents(); if (ui.view === 'sports') patchOdds(); return setMsg('warn', 'Prices just changed. Your slip now shows the new prices – check them and place your bet again.'); }
   if (r.status === 401) { me = null; renderAll(); return openAuth('login'); }
+  if (r.data.error === 'on_break') { const m = await api('GET', '/me'); setMe(m.data); renderAcct(); return renderSlip(); }   // break started elsewhere
   setMsg('error', r.data.message || 'Could not place the bet.', r.data.error === 'insufficient_funds' ? 'deposit' : undefined);
 }
 
 /* ---------- modals ---------- */
-function modal(html) { lastFocus = document.activeElement; $('#modalCard').innerHTML = html; $('#modal').hidden = false; const i = $('#modalCard input:not([type=checkbox]),#modalCard button'); i && i.focus(); }
+function modal(html) { if ($('#modal').hidden) lastFocus = document.activeElement;   // one dialog replacing another keeps the original return point
+  $('#modalCard').innerHTML = html; $('#modal').hidden = false; const i = $('#modalCard input:not([type=checkbox]),#modalCard button'); i && i.focus(); }
 function closeModal() { $('#modal').hidden = true; if (lastFocus && document.contains(lastFocus)) lastFocus.focus(); lastFocus = null; }
 function openAuth(mode) {
   const reg = mode === 'register';
   modal(`<h2 id="mTitle">${reg ? 'Create your account' : 'Log in'}</h2>
-    ${reg ? '<p class="warn-text">Demo site: you get R1 000 of play money. A real operator must verify your RSA ID (FICA) before you can bet.</p>' : ''}
+    ${reg && config.demo ? '<p class="warn-text">Demo site: you get R1 000 of play money. A real operator must verify your RSA ID (FICA) before you can bet.</p>' : ''}
     <form id="authForm" data-mode="${mode}">
       <label class="field"><span>Username</span><input name="username" required minlength="3" maxlength="24" autocomplete="username"></label>
       <label class="field"><span>Password${reg ? ' (at least 8 characters)' : ''}</span><input name="password" type="password" required minlength="${reg ? 8 : 1}" maxlength="128" autocomplete="${reg ? 'new-password' : 'current-password'}"></label>
       ${reg ? `<label class="field"><span>Date of birth</span><input name="dob" type="date" required></label>
+        <fieldset class="limit-pick"><legend>Your daily deposit limit</legend>
+          <div class="radio-chips">${LIMIT_CHOICES.map(v => `<label><input type="radio" name="limit" value="${v}" required><span>R${v.toLocaleString('en-ZA')}</span></label>`).join('')}<label><input type="radio" name="limit" value="0" required><span>No limit</span></label></div>
+          <p class="warn-text">The most you can deposit in one day. You can lower it at any time. Raising it takes ${config.limit_cooloff_hours} hours.</p></fieldset>
         <label class="check"><input type="checkbox" name="terms" required> I am 18 or older and accept the (demo) terms.</label>` : ''}
       <div class="err" id="authErr" role="alert"></div>
       <button class="btn primary block">${reg ? 'Create account' : 'Log in'}</button></form>
     <p class="warn-text center">${reg ? 'Already have an account?' : 'New here?'} <button class="linkbtn" data-act="${reg ? 'login' : 'join'}">${reg ? 'Log in' : 'Create an account'}</button></p>`);
 }
 function openDeposit() {
+  if (onBreak()) return modal(`<h2 id="mTitle">Deposit</h2><p class="msg warn">You're on a break until <strong>${esc(fmtWhen(me.break_until))}</strong>. Deposits are paused until then.</p><button class="btn block" data-act="close">Close</button>`);
   const lim = me.deposit_limit_cents;
-  modal(`<h2 id="mTitle">Deposit</h2><p class="warn-text">Demo: adds play money only, no real payment is taken.${lim ? ` Daily limit ${R(lim)} · deposited today ${R(me.deposited_today_cents)}.` : ''}</p>
+  modal(`<h2 id="mTitle">Deposit</h2><p class="warn-text">Demo: adds play money only, no real payment is taken.${lim ? ` Daily limit ${R(lim)} · ${R(Math.max(0, lim - me.deposited_today_cents))} left today.` : ''}</p>
     <div class="chips">${[100, 500, 1000, 2500].map(v => `<button data-dep="${v}">R${v}</button>`).join('')}</div>
     <button class="btn block" data-act="close">Cancel</button>`);
 }
-function openLimits() {
-  modal(`<h2 id="mTitle">Responsible gambling</h2>
-    <p class="warn-text">Only bet what you can afford to lose. Gambling can be addictive. For free, confidential help call the South African Responsible Gambling Foundation on <strong>0800 006 008</strong>.</p>
-    ${me ? `<label class="field"><span>Daily deposit limit (R, 0 = no limit)</span><input id="lim" type="number" min="0" value="${me.deposit_limit_cents / 100}"></label>
-      <button class="btn primary block" data-act="saveLimit">Save limit</button>` : '<p class="warn-text">Log in to set a daily deposit limit.</p>'}
-    <button class="btn block mt8" data-act="close">Close</button>`);
+let breakPick = null;
+const breakLabel = h => (h === 24 ? '24 hours' : `${h / 24} days`);
+function limitsHtml(note, error) {
+  const help = '<p class="warn-text">Gambling can be addictive. For free, confidential help call the South African Responsible Gambling Foundation on <strong>0800 006 008</strong>.</p>';
+  if (!me) return `<h2 id="mTitle">Stay in control</h2>${help}<p class="warn-text">Log in to set a deposit limit or take a break.</p>
+    <button class="btn primary block" data-act="login">Log in</button><button class="btn block mt8" data-act="close">Close</button>`;
+  const lim = me.deposit_limit_cents, pend = me.pending_limit, brk = onBreak();
+  return `<h2 id="mTitle">Stay in control</h2>
+    <section class="ctl"><h3>Daily deposit limit</h3>
+      <p class="ctl-now" id="limNow">${lim ? `${R(lim)} a day · ${R(Math.max(0, lim - me.deposited_today_cents))} left today` : 'No limit'}</p>
+      ${pend ? `<p class="msg warn" id="limPending">Changes to ${pend.cents ? R(pend.cents) + ' a day' : 'no limit'} on ${esc(fmtWhen(pend.at))}. <button class="linkbtn" data-act="cancelLimit">Cancel the change</button></p>` : ''}
+      <label class="field"><span>New limit (R a day, 0 = no limit)</span><input id="lim" type="number" inputmode="numeric" min="0" step="1" value="${lim / 100}"></label>
+      <div class="err" id="limErr" role="alert">${error ? esc(error) : ''}</div>
+      <button class="btn primary block" data-act="saveLimit">Save limit</button>
+      ${note ? `<p class="ok-text" id="limNote" role="status">${esc(note)}</p>` : ''}
+      <p class="warn-text">A lower limit applies straight away. A higher limit starts after ${config.limit_cooloff_hours} hours.</p>
+    </section>
+    <section class="ctl"><h3>Take a break</h3>
+      ${brk ? `<p class="msg warn" id="breakNow">You're on a break until <strong>${esc(fmtWhen(me.break_until))}</strong>. Betting and deposits are paused. You can make it longer.</p>`
+            : '<p class="warn-text">Pause betting and deposits. A break cannot be ended early.</p>'}
+      <div class="chips" id="breakOpts">${config.break_hours.map(h => `<button data-break="${h}" aria-pressed="${breakPick === h}">${breakLabel(h)}</button>`).join('')}</div>
+      ${breakPick ? `<button class="btn primary block" data-act="startBreak">Start a ${breakPick === 24 ? '24-hour' : breakPick / 24 + '-day'} break</button>` : ''}
+    </section>
+    ${help}
+    <button class="btn block mt8" data-act="close">Close</button>`;
+}
+function openLimits() { breakPick = null; modal(limitsHtml()); }
+const redrawLimits = (note, error) => { $('#modalCard').innerHTML = limitsHtml(note, error); };
+
+/* ---------- my spending: the plain monthly statement ---------- */
+async function openSpending(month) {
+  const r = await api('GET', '/statement' + (month ? `?month=${month}` : '')); if (!r.ok) return toast('Could not load your spending');
+  const s = r.data, i = s.months.indexOf(s.month);                   // months are newest first
+  const newer = i > 0 ? s.months[i - 1] : null, older = i >= 0 && i < s.months.length - 1 ? s.months[i + 1] : null;
+  const name = new Date(`${s.month}-15T12:00:00Z`).toLocaleDateString('en-ZA', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  const res = s.result_cents, played = s.bets + s.game_rounds > 0;
+  const verdict = !played ? 'No bets this month' : res < 0 ? `You are down ${R(-res)}` : res > 0 ? `You are up ${R(res)}` : 'You are even';
+  const what = [s.bets ? `${s.bets} bet${s.bets > 1 ? 's' : ''}` : '', s.game_rounds ? `${s.game_rounds} game round${s.game_rounds > 1 ? 's' : ''}` : ''].filter(Boolean).join(', ');
+  const html = `<h2 id="mTitle">My spending</h2>
+    <div class="month-nav"><button class="icon-btn" ${older ? `data-month="${older}"` : 'disabled'} aria-label="Earlier month">‹</button><strong id="spMonth">${esc(name)}</strong><button class="icon-btn" ${newer ? `data-month="${newer}"` : 'disabled'} aria-label="Later month">›</button></div>
+    <p class="verdict ${!played ? '' : res < 0 ? 'down' : res > 0 ? 'up' : ''}" id="verdict">${verdict}</p>
+    <dl class="kv">
+      <div><dt>You staked${what ? ` (${what})` : ''}</dt><dd id="spStaked">${R(s.staked_cents)}</dd></div>
+      <div><dt>You got back</dt><dd id="spReturned">${R(s.returned_cents)}</dd></div>
+      <div><dt>Deposited</dt><dd id="spDeposited">${R(s.deposited_cents)}</dd></div>
+      <div><dt>Withdrawn</dt><dd id="spWithdrawn">${R(s.withdrawn_cents)}</dd></div>
+      ${s.bonus_cents ? `<div><dt>Play-money credit</dt><dd>${R(s.bonus_cents)}</dd></div>` : ''}
+    </dl>
+    <button class="btn block" data-act="statement">All transactions</button>
+    <button class="btn block mt8" data-act="close">Close</button>`;
+  if ($('#modal').hidden) modal(html); else $('#modalCard').innerHTML = html;   // moving between months redraws in place
 }
 async function openStatement() {
   const r = await api('GET', '/ledger'); if (!r.ok) return toast('Could not load the statement');
   const label = { bonus: 'Welcome bonus', deposit: 'Deposit', bet_stake: 'Bet stake', bet_payout: 'Bet winnings', game_stake: 'Game stake', game_win: 'Game win' };
-  modal(`<h2 id="mTitle">Wallet statement</h2><p class="warn-text">Balance ${R(me.balance_cents)}. Every movement is recorded in an append-only ledger.</p>
+  modal(`<h2 id="mTitle">All transactions</h2><p class="warn-text">Balance ${R(me.balance_cents)}. Every movement is recorded and can never be edited. <button class="linkbtn" data-act="spending">Back to My spending</button></p>
     <table class="stmt">${r.data.entries.map(e => `<tr><td>${new Date(e.created_at).toLocaleString('en-ZA', { dateStyle: 'short', timeStyle: 'short' })}</td><td>${esc(label[e.kind] || e.kind)}${e.ref ? ' ' + esc(e.ref.replace(/^(bet|round):/, '#')) : ''}</td>
       <td class="${e.amount_cents < 0 ? 'neg' : 'pos'}">${e.amount_cents < 0 ? '−' : '+'}${R(Math.abs(e.amount_cents))}</td></tr>`).join('') || '<tr><td>No transactions</td></tr>'}</table>
     <button class="btn block mt8" data-act="close">Close</button>`);
@@ -350,6 +409,8 @@ document.addEventListener('click', async e => {
   if (d.q) { ui.stake = Number(d.q); const i = $('#stake'); if (i) i.value = ui.stake; ui.msg = null; const m = $('#slip .msg'); if (m) m.remove(); return updateTotals(); }
   if (d.btab) { ui.betsTab = d.btab; return renderContent(); }
   if (d.dep) return deposit(Number(d.dep));
+  if (d.month) return openSpending(d.month);
+  if (d.break) { breakPick = Number(d.break); return redrawLimits(); }
   if (d.gstake) { gs.stake = Number(d.gstake); $$('#gq button').forEach(b => b.classList.toggle('on', b.dataset.gstake === d.gstake)); const sp = $('#gspin'); if (sp && me) sp.textContent = `Spin · R${gs.stake}`; return; }
   if (d.game) return openGame(d.game);
   switch (d.act) {
@@ -358,7 +419,18 @@ document.addEventListener('click', async e => {
     case 'deposit': closeModal(); return me && openDeposit();
     case 'limits': return openLimits();
     case 'statement': return openStatement();
-    case 'saveLimit': { const r = await api('PUT', '/limits', { deposit_limit_cents: Math.round((Number($('#lim').value) || 0) * 100) }); if (r.ok) { setMe(r.data); closeModal(); toast('Limit saved'); } else toast(r.data.message || 'Could not save'); return; }
+    case 'spending': return openSpending();
+    case 'saveLimit': {
+      const r = await api('PUT', '/limits', { deposit_limit_cents: Math.round((Number($('#lim').value) || 0) * 100) });
+      if (!r.ok) return redrawLimits(null, r.data.message || 'Could not save the limit.');
+      setMe(r.data); renderAcct();
+      return redrawLimits(r.data.pending_limit ? `Saved. Your higher limit starts on ${fmtWhen(r.data.pending_limit.at)}.` : 'Limit saved. It applies now.');
+    }
+    case 'cancelLimit': { const r = await api('PUT', '/limits', { deposit_limit_cents: me.deposit_limit_cents }); if (r.ok) { setMe(r.data); redrawLimits('The change was cancelled.'); } return; }
+    case 'startBreak': {
+      const r = await api('POST', '/break', { hours: breakPick }); if (!r.ok) return redrawLimits(null, r.data.message || 'Could not start the break.');
+      setMe(r.data); breakPick = null; renderAcct(); renderSlip(); return redrawLimits();
+    }
     case 'logout': await api('POST', '/logout'); me = null; bets = []; ui.receipt = null; ui.msg = null; renderAll(); return;
     case 'clear': resetSlip(); syncSelected(); return renderSlip();
     case 'place': return place();
@@ -376,11 +448,11 @@ document.addEventListener('submit', async e => {
   if (e.target.id !== 'authForm') return; e.preventDefault();
   const f = new FormData(e.target), reg = e.target.dataset.mode === 'register';
   const body = { username: f.get('username').trim(), password: f.get('password') };
-  if (reg) { body.dob = f.get('dob'); body.terms = f.get('terms') === 'on'; }
+  if (reg) { body.dob = f.get('dob'); body.terms = f.get('terms') === 'on'; body.deposit_limit_cents = f.get('limit') === null ? null : Number(f.get('limit')) * 100; }
   const btn = e.target.querySelector('button'); btn.disabled = true;
   const r = await api('POST', reg ? '/register' : '/login', body);
   if (!r.ok) { btn.disabled = false; $('#authErr').textContent = r.data.message || 'Something went wrong'; return; }
-  setMe(r.data); await loadBets(); closeModal(); renderAll(); toast(reg ? `Welcome, ${me.user.username}! R1 000 play money added.` : `Welcome back, ${me.user.username}`);
+  setMe(r.data); await loadBets(); closeModal(); renderAll(); toast(reg ? `Welcome, ${me.user.username}!${config.demo ? ' R1 000 play money added.' : ''}` : `Welcome back, ${me.user.username}`);
 });
 
 /* ---------- boot ---------- */

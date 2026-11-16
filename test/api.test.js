@@ -21,7 +21,7 @@ function client() {
     return { status: r.status, body: await r.json().catch(() => null), headers: r.headers };
   };
 }
-const reg = (c, username, extra = {}) => c('POST', '/api/register', { username, password: 'correct horse', dob: '1990-01-01', terms: true, ...extra });
+const reg = (c, username, extra = {}) => c('POST', '/api/register', { username, password: 'correct horse', dob: '1990-01-01', terms: true, deposit_limit_cents: 0, ...extra });
 const upcoming = async c => (await c('GET', '/api/events')).body.events.filter(e => !e.live && !e.closed);
 const sel = (e, i = 0) => ({ ev: e.id, mk: 'w', k: e.markets[0].sels[i].k, odds: e.markets[0].sels[i].odds });
 

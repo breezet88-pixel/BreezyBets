@@ -159,6 +159,33 @@ details summary{cursor:pointer}
 .gm details summary{color:var(--muted);font-size:13px;margin-top:10px}
 .gm .chips button.on{background:var(--brand);color:var(--ink);border-color:var(--brand)}
 
+/* ---------- staying in control: break notice, limit choice, spending ---------- */
+.notice{background:#3a2f0b;border-bottom:1px solid var(--accent);color:#ffe9a8;text-align:center;padding:8px 12px;font-size:14px}
+.notice strong{color:#fff}
+fieldset.limit-pick{border:0;margin:12px 0 4px;padding:0;min-width:0}
+fieldset.limit-pick legend{font-size:13px;color:var(--muted);margin-bottom:6px;padding:0}
+.radio-chips{display:flex;flex-wrap:wrap;gap:6px}
+.radio-chips label{position:relative}
+.radio-chips input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.radio-chips span{display:block;padding:9px 13px;border-radius:99px;background:var(--panel2);border:1px solid var(--line);font-weight:600;font-size:14px}
+.radio-chips input:checked + span{background:var(--brand);border-color:var(--brand);color:var(--ink)}
+.radio-chips input:focus-visible + span{outline:2px solid var(--accent);outline-offset:2px}
+.ctl{border-top:1px solid var(--line);padding-top:12px;margin-top:14px}
+.ctl h3{font-size:16px;margin-bottom:4px}
+.ctl-now{font-weight:700;margin:0 0 6px}
+.ctl .msg{margin:8px 0}
+.ok-text{color:var(--win);font-size:14px;margin:8px 0 0}
+.chips button[aria-pressed=true]{background:var(--brand);border-color:var(--brand);color:var(--ink)}
+.month-nav{display:flex;align-items:center;justify-content:space-between;margin:2px 0 6px}
+.month-nav .icon-btn{font-size:24px;width:40px;height:40px}
+.month-nav .icon-btn:disabled{opacity:.3;cursor:default}
+.verdict{font-size:20px;font-weight:800;margin:2px 0 10px}
+.verdict.down{color:var(--danger)}.verdict.up{color:var(--win)}
+.kv{margin:0 0 14px}
+.kv div{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+
 /* ---------- footer, modal, toast ---------- */
 .foot{max-width:1120px;margin:8px auto 24px;padding:16px;color:var(--muted);font-size:13px;border-top:1px solid var(--line)}
 .foot strong{color:var(--text)}
