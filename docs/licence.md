@@ -47,12 +47,34 @@ The board published a draft change to its fees in October 2026 ([draft](https://
 ## The order to do it in
 
 1. **Email the board** (draft below). Free, and it answers the biggest unknown.
-2. **Get quotes from two gambling lawyers.** Names that came up: [Lurie Inc](https://practiceguides.chambers.com/practice-guides/gaming-law-2025/south-africa), a specialist gambling practice in Johannesburg, and Werksmans, which publishes on bookmaker licensing. I have not verified either firm's current services or fees.
+2. **Get quotes from two or three gambling lawyers** (see "Choosing a lawyer and keeping the cost down" below).
 3. **Decide the ownership** with the lawyer, including black-ownership (B-BBEE) expectations.
 4. **Register the company, open the bank account, find the office.**
 5. **Choose the certified platform** and get its certification letter.
 6. **Submit** the application, the premises application and the key-employee applications, and pay the fees.
 7. **Investigation and decision.** Only then connect payments and switch off demo mode.
+
+## Choosing a lawyer and keeping the cost down
+
+South Africa has no official "certified gambling lawyer" stamp. What you want is an **admitted attorney with a real gaming/gambling-law practice**. The firms below publicly do this work; I have **not** verified their current services, fees, or that they are taking new clients, so treat them as starting points to contact, not recommendations.
+
+| Firm | Note | Likely fit |
+|---|---|---|
+| [Barter McKellar](https://www.bartermckellar.law/gaming-law) (Johannesburg) | Has a dedicated gaming-law practice; says it handles bookmaker licence applications, transfers and objections across provinces. | A smaller specialist firm is usually cheaper than a large one — worth a first call. |
+| [Werksmans](https://werksmans.com/practice-areas/regulatory/national-gambling-act) | Large firm; has done bookmaker licence applications in the Western Cape for a listed group. | Thorough but likely the most expensive. Good for a second opinion. |
+| SBSB FinTech Lawyers | Advertises help with a South African gambling licence. Verify location and credentials before engaging. | Unverified; get details first. |
+
+Verify any firm on the **Legal Practice Council** register (lpc.org.za) before paying — it confirms the attorney is currently admitted and in good standing.
+
+**You are not legally required to use a lawyer.** The Western Cape board's forms are public and say the applicant completes and signs them, and you may file directly. A lawyer is still worth it for the probity/ownership structuring and to avoid a rejected application, but you decide how much of the work you hand over. The way to spend the least:
+
+1. **Do the free step first.** Send the board email (below) and get their current requirements and fee schedule in writing. This stops a lawyer from charging you to find out things the board will tell you for free.
+2. **Do the ordinary business parts yourself:** register the company (CIPC), open the bank account, write the business plan, and gather IDs, tax clearance and proof of address. The research calls the compliance dossier "KYC on steroids" — most of it is assembling documents, not legal argument.
+3. **Ask for a fixed fee or a capped fee for a defined scope**, not an open hourly engagement. A sensible narrow scope: review the ownership structure for probity, check the completed application before filing, and handle any queries the board raises. Get the quote in writing with the scope listed.
+4. **Take a paid first consultation** (often an hour) with two firms before committing. Ask each: roughly what has a Western Cape online bookmaker licence cost your clients, start to finish, in legal fees? and what is the single most common reason applications get rejected or delayed? The answers tell you who understands the work and who is cheaper.
+5. **Keep the lawyer off the platform side.** Certification of the betting system (SANS 1718) is the platform supplier's job, not the lawyer's — don't pay legal rates for it.
+
+Expect legal fees in the **tens to low hundreds of thousands of rand** depending on how much you do yourself; one consultancy puts full-service legal work at "hundreds of thousands." That range is wide and unverified, which is exactly why you get two or three written quotes before choosing.
 
 ## Email to the Western Cape Gambling and Racing Board
 

@@ -11,7 +11,7 @@ The market is large and growing, but two brands hold most of it and they cannot 
 | **Certainty of payout:** verified once at sign-up, paid in minutes, no locked accounts | Strong |
 | **Honest and safe by design:** limits at sign-up, a plain spend statement, no bonus strings | Strong that it is needed; weaker that it wins customers |
 | **Simplest and lightest site:** a bet in three taps, tiny data use, no app to install | Moderate |
-| **Your language:** isiZulu, isiXhosa, Sesotho, Afrikaans | Promising, unverified |
+| ~~**Your language:** isiZulu, isiXhosa, Sesotho, Afrikaans~~ | Dropped by the owner: English only (see 4.4) |
 
 **The handicap:** we can only offer sports betting. South African bettors lean towards casino-style games, and sports-only customers are the most likely to leave. Section 5 covers this.
 
@@ -79,11 +79,12 @@ A first visit is about 35 KB (39 KB over HTTPS). No app download is needed. "Bef
 - **What we would do next.** Push live prices over one open connection instead of asking every 5 seconds. That would bring live viewing well under the target, at the cost of a second way of delivering prices to maintain. A light site also makes a zero-rating deal cheaper, because the operator pays for the data.
 - **Caution.** I could not measure rival sites from here, so the comparison is against their apps, not their mobile sites.
 
-### 4.4 Your language (promising, unverified)
+### 4.4 Your language — not pursued (owner's decision: English only)
+
+The owner has decided the site stays **English only**, so this gap is not being built. The research below is kept for the record.
 
 - **Evidence.** I found no South African bookmaker advertising an isiZulu, isiXhosa, Sesotho or Afrikaans version. isiZulu is the home language of about a quarter of the population and isiXhosa about 15% ([Afrolingo](https://afrolingo.co.za/blog/south-african-languages/)). At least one platform vendor says its software supports these languages ([SOFTSWISS](https://www.softswiss.com/?p=331973)), so the capability exists even if operators do not use it.
-- **Check first.** Look for a language switch on Betway, Hollywoodbets and Sunbet on your phone.
-- **Needs.** A native speaker to review every translation. I can write Afrikaans reliably; my isiZulu, isiXhosa and Sesotho would need checking.
+- **Trade-off the owner accepts.** An English-only site is simpler and avoids translation-quality risk, but it turns away bettors who are not comfortable in English — the largest home-language groups above. That is a reach-vs-simplicity choice, and it is the owner's to make.
 
 ### 4.5 Smaller angles
 
@@ -128,7 +129,7 @@ A first visit is about 35 KB (39 KB over HTTPS). No app download is needed. "Bef
 | 4 | Language switch | 4.4 | Native-speaker review |
 | 5 | Share a bet by WhatsApp link | Table stakes | Nothing. **Built.** |
 
-**Status, 16 November 2026:** builds 1, 2, 3 and 5 are done and tested. Only the language switch (4) remains. Sharing a bet carries no reward for the sharer; Betway is reported to pay one, and adding it here is a marketing and compliance decision, not a technical one. Two things from section 4.1 are deliberately not built yet: identity verification against Home Affairs (needs a verification provider) and compensation for a late payout (a business decision best made once real payout times are known).
+**Status, 16 November 2026:** builds 1, 2, 3 and 5 are done and tested. Build 4 (the language switch) was dropped by the owner — the site is English only — so all the product builds from this analysis are now closed. Sharing a bet carries no reward for the sharer; Betway is reported to pay one, and adding it here is a marketing and compliance decision, not a technical one. Two things from section 4.1 are deliberately not built yet: identity verification against Home Affairs (needs a verification provider) and compensation for a late payout (a business decision best made once real payout times are known).
 
 In parallel, outside the code: start the Western Cape licence application, send the provider email in `docs/payments.md`, and ask three platform suppliers for quotes.
 
