@@ -178,10 +178,12 @@ a.brand{color:inherit;text-decoration:none}
 .tile.income .t-big{color:var(--red-hi)}
 @media (max-width:720px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.tile{padding:15px;border-radius:16px}.tile .t-sub{font-size:12.5px}.tile .t-go{right:14px;top:10px}}
 /* combined gross band */
-.combined{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:14px 0 16px;margin-bottom:18px;max-width:1000px}
+.combined{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-bottom:18px;max-width:1000px}
+.combined .cb{padding:14px 0 16px;display:flex;flex-direction:column;gap:3px;min-width:0}
+.combined .cb+.cb{padding-left:24px;border-left:1px solid var(--line)}
 .combined .big-num{display:block;font-size:56px}
-.combined .sub{font-size:13.5px;color:var(--muted);text-align:right;line-height:1.5}
-@media (max-width:720px){.combined .sub{text-align:left}.combined .big-num{font-size:48px}}
+.combined .sub{font-size:13.5px;color:var(--muted);line-height:1.5}
+@media (max-width:720px){.combined .big-num{font-size:38px}.combined .cb+.cb{padding-left:14px}.combined .sub{font-size:12.5px}}
 /* savings tick */
 .tick{display:inline-flex;align-items:center;gap:10px;background:none;border:0;cursor:pointer;color:var(--muted);padding:6px 2px;font-weight:500}
 .tick .box{width:28px;height:28px;border:2px solid #4a4a52;border-radius:8px;display:grid;place-items:center;flex:none;background:var(--bg)}
@@ -490,7 +492,7 @@ function summary(mk){
   var gross=va+be.gross+extra;
   var takeHome=r2(va+be.net+extra-tax);
   var cats={};spendE.forEach(function(e){var c=e.category||'Other';cats[c]=(cats[c]||0)+(+e.amount||0)});
-  return{mk:mk,ses:ses,va:va,vaEarned:vaEarned,vaMins:sum(ses,function(s){return dur(s.start,s.end)}),be:be,extra:extra,spend:spend,spendE:spendE,tax:tax,gross:gross,takeHome:takeHome,savings:savingsFor(mk),left:r2(takeHome-spend-savingsFor(mk)),cats:cats};
+  return{mk:mk,ses:ses,va:va,vaEarned:vaEarned,vaMins:sum(ses,function(s){return dur(s.start,s.end)}),be:be,extra:extra,spend:spend,spendE:spendE,tax:tax,gross:gross,takeHome:takeHome,deductions:r2(gross-takeHome),usable:r2(takeHome-spend),savings:savingsFor(mk),left:r2(takeHome-spend-savingsFor(mk)),cats:cats};
 }
 
 /* ================================================================== UI state */
@@ -551,16 +553,16 @@ function wfCard(mk){
     wfRow('Virgin Active classes',s.ses.length?s.ses.length+' classes · invoice '+fmtDs(per.start)+' to '+fmtDs(per.end)+' · paid '+fmtD(vp.date)+(per.end>=today?' · forecast':''):'No classes in this invoice period yet',R(s.va),'')+
     wfRow('B-Active salary',be.mode==='legacy'?'As recorded in your old sheet, before payslip deductions':(be.unpaid?'Basic '+R(be.basic)+' less unpaid leave '+R(be.unpaid):'Basic salary')+' · paid '+fmtD(bp.date),R(be.gross),'')+
     (s.extra?wfRow('Extra income','',R(s.extra),'','+'):'')+
-    wfRow('Gross earnings','',R(s.gross),'tot')+
+    wfRow('Combined gross income','',R(s.gross),'tot')+
     (be.paye?wfRow('PAYE tax','Taken from your B-Active pay',R(be.paye),'','−'):'')+
     (be.uif?wfRow('UIF','1% of your B-Active pay, capped',R(be.uif),'','−'):'')+
     (be.loan?wfRow('B-Active loan repayment',be.after!=null?'Balance after this payment '+R(be.after):'',R(be.loan),'','−'):'')+
     (be.other?wfRow('Other payslip deductions','',R(be.other),'','−'):'')+
     (s.tax?wfRow('Tax set aside on Virgin Active','Estimate for SARS. This income has no tax taken off at source.',R(s.tax),'','−'):'')+
     wfRow('Take-home','',R(s.takeHome),'tot')+
-    wfRow('Spending','Petrol and everything you logged',R(s.spend),'','−')+
-    (s.savings?wfRow('Savings',savedDone(mk)?'Moved to savings':'Planned',R(s.savings),'','−'):'')+
-    wfRow('Left over','',R(s.left),'tot final')+
+    wfRow('Expenses','Petrol, food, incidentals and everything you logged',R(s.spend),'','−')+
+    wfRow('Usable after deductions and expenses','',R(s.usable),s.savings?'tot':'tot final')+
+    (s.savings?wfRow('Savings',savedDone(mk)?'Moved to savings':'Planned',R(s.savings),'','−')+wfRow('Left after savings','',R(s.left),'tot final'):'')+
     '</div></div>';
 }
 function spendCard(mk){
@@ -578,7 +580,7 @@ function viewOverview(){
   var done=s.ses.filter(function(x){return x.date<=today}).length,togo=s.ses.length-done;
   var weekly=S().recurring.filter(function(r){return r.per==='week'&&mk>=r.from&&(!r.until||mk<=r.until)});
   var head='<div class="head"><div><h1>Overview</h1><p>Tap a square to open it.</p></div>'+stepper('overview',monthLabel(mk))+'</div>';
-  var band='<div class="combined"><div><span class="lab">Combined gross income</span><span class="big-num">'+R(s.gross)+'</span></div><div class="sub">Virgin Active '+R(s.va)+' + B-Active '+R(s.be.gross)+(s.extra?' + extra '+R(s.extra):'')+'<br>Before tax and deductions</div></div>';
+  var band='<div class="combined"><div class="cb"><span class="lab">Combined gross income</span><span class="big-num">'+R(s.gross)+'</span><span class="sub">Virgin Active '+R(s.va)+' + B-Active '+R(s.be.gross)+(s.extra?' + extra '+R(s.extra):'')+'</span></div><div class="cb"><span class="lab">Usable after deductions and expenses</span><span class="big-num red">'+Rw(s.usable)+'</span><span class="sub">Less deductions '+Rw(s.deductions)+' and expenses '+Rw(s.spend)+'</span></div></div>';
   var tiles='<div class="tiles">'+
     tile('virgin-active','Virgin Active',R(s.va),(s.ses.length?'<b>'+done+'</b> class'+(done===1?'':'es')+' done'+(togo?' · '+togo+' to go':''):'No classes yet')+'<br>Paid '+fmtD(vp.date),'income')+
     tile('be-active','B-Active salary',s.be.has?R(s.be.net):'None','Paid '+fmtD(bp.date),'income')+
@@ -590,15 +592,15 @@ function viewOverview(){
   return head+band+tiles;
 }
 function yearCard(){
-  var yr=mkParse(ui.month).y,rows='',t={n:0,va:0,be:0,gr:0,th:0,sv:0,left:0};
+  var yr=mkParse(ui.month).y,rows='',t={n:0,va:0,be:0,gr:0,de:0,ex:0,us:0,sv:0,left:0};
   for(var i=1;i<=12;i++){
     var m=yr+'-'+pad(i),s=summary(m),per=period(m);
     var lv=(S().leave||[]).some(function(l){return l.from<=per.end&&l.to>=per.start});
-    t.n+=s.ses.length;t.va+=s.va;t.gr+=s.gross;t.be+=s.be.net;t.th+=s.takeHome;t.sv+=s.savings;t.left+=s.left;
-    rows+='<tr'+(m===ui.month?' class="cur"':'')+'><td><a href="#forecast" data-act="fc-pick" data-m="'+m+'" style="text-decoration:none">'+MONL[i-1]+'</a>'+(lv?' <span class="tag" style="color:var(--warn);border-color:#4d3b1c">Leave</span>':'')+'</td><td class="faint" style="white-space:nowrap">'+fmtDs(per.start)+' to '+fmtDs(per.end)+'</td><td class="r">'+s.ses.length+'</td><td class="r">'+Rw(s.va)+'</td><td class="r">'+(s.be.has?Rw(s.be.net):'<span class="faint">none</span>')+'</td><td class="r">'+Rw(s.gross)+'</td><td class="r">'+Rw(s.takeHome)+'</td><td class="r">'+Rw(s.savings)+'</td><td class="r">'+Rw(s.left)+'</td></tr>';
+    t.n+=s.ses.length;t.va+=s.va;t.be+=s.be.gross;t.gr+=s.gross;t.de+=s.deductions;t.ex+=s.spend;t.us+=s.usable;t.sv+=s.savings;t.left+=s.left;
+    rows+='<tr'+(m===ui.month?' class="cur"':'')+'><td><a href="#forecast" data-act="fc-pick" data-m="'+m+'" style="text-decoration:none">'+MONL[i-1]+'</a>'+(lv?' <span class="tag" style="color:var(--warn);border-color:#4d3b1c">Leave</span>':'')+'</td><td class="faint" style="white-space:nowrap">'+fmtDs(per.start)+' to '+fmtDs(per.end)+'</td><td class="r">'+s.ses.length+'</td><td class="r">'+Rw(s.va)+'</td><td class="r">'+(s.be.has?Rw(s.be.gross):'<span class="faint">none</span>')+'</td><td class="r">'+Rw(s.gross)+'</td><td class="r">'+Rw(s.deductions)+'</td><td class="r">'+Rw(s.spend)+'</td><td class="r" style="color:var(--red-hi);font-weight:600">'+Rw(s.usable)+'</td><td class="r">'+Rw(s.savings)+'</td><td class="r">'+Rw(s.left)+'</td></tr>';
   }
-  rows+='<tr><td><b>Year</b></td><td></td><td class="r"><b>'+t.n+'</b></td><td class="r"><b>'+Rw(t.va)+'</b></td><td class="r"><b>'+Rw(t.be)+'</b></td><td class="r"><b>'+Rw(t.gr)+'</b></td><td class="r"><b>'+Rw(t.th)+'</b></td><td class="r"><b>'+Rw(t.sv)+'</b></td><td class="r"><b>'+Rw(t.left)+'</b></td></tr>';
-  return '<div class="card"><h2>Every month in '+yr+' <span style="display:flex;gap:6px"><button class="btn icon small" data-act="fc-year" data-dir="-1" aria-label="Previous year">&#8249;</button><button class="btn icon small" data-act="fc-year" data-dir="1" aria-label="Next year">&#8250;</button></span></h2><div class="scroll"><table><tr><th>Paid in</th><th>Virgin Active invoice</th><th class="r">Classes</th><th class="r">Virgin Active</th><th class="r">B-Active</th><th class="r">Gross</th><th class="r">Take-home</th><th class="r">Savings</th><th class="r">Left over</th></tr>'+rows+'</table></div><p class="note" style="margin-top:8px">Gross is Virgin Active plus B-Active before any deductions. B-Active is net pay. Take-home is after PAYE, UIF, the loan and tax set-aside. Future months follow your weekly timetable, public holidays and leave. Left over is after petrol, other logged spending and savings. Tap a month for its breakdown.</p></div>';
+  rows+='<tr><td><b>Year</b></td><td></td><td class="r"><b>'+t.n+'</b></td><td class="r"><b>'+Rw(t.va)+'</b></td><td class="r"><b>'+Rw(t.be)+'</b></td><td class="r"><b>'+Rw(t.gr)+'</b></td><td class="r"><b>'+Rw(t.de)+'</b></td><td class="r"><b>'+Rw(t.ex)+'</b></td><td class="r"><b>'+Rw(t.us)+'</b></td><td class="r"><b>'+Rw(t.sv)+'</b></td><td class="r"><b>'+Rw(t.left)+'</b></td></tr>';
+  return '<div class="card"><h2>Every month in '+yr+' <span style="display:flex;gap:6px"><button class="btn icon small" data-act="fc-year" data-dir="-1" aria-label="Previous year">&#8249;</button><button class="btn icon small" data-act="fc-year" data-dir="1" aria-label="Next year">&#8250;</button></span></h2><div class="scroll"><table><tr><th>Paid in</th><th>Virgin Active invoice</th><th class="r">Classes</th><th class="r">Virgin Active</th><th class="r">B-Active</th><th class="r">Gross</th><th class="r">Deductions</th><th class="r">Expenses</th><th class="r">Usable</th><th class="r">Savings</th><th class="r">After savings</th></tr>'+rows+'</table></div><p class="note" style="margin-top:8px">Gross is Virgin Active plus B-Active before anything comes off. Deductions are PAYE, UIF, the loan and the tax set-aside on Virgin Active. Usable is gross less deductions and expenses. Future months follow your weekly timetable, public holidays and leave, and only know the costs you have set up or logged. Tap a month for its breakdown.</p></div>';
 }
 function viewForecast(){
   var mk=ui.month;
