@@ -19,7 +19,7 @@ html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 var(--f-body);-webkit-font-smoothing:antialiased}
 button,input,select,textarea{font:inherit;color:inherit}
 h1,h2,h3,p{margin:0}
-.app{max-width:1120px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:18px 110px}
+.app{max-width:1120px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:18px 100px}
 .num,.big-num,.stat b{font-family:var(--f-display);font-variant-numeric:tabular-nums;letter-spacing:.01em}
 .tnum{font-variant-numeric:tabular-nums}
 .lab{font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:500}
@@ -155,12 +155,27 @@ tr.cur td{background:var(--panel-2)}
 .cls-row.head-r{border-top:0;padding:0 0 4px}
 .tt-day{display:grid;grid-template-columns:54px minmax(0,1fr);gap:10px;padding:9px 0;border-top:1px solid var(--line-soft);align-items:start}
 .tt-day b{font-family:var(--f-display);font-size:18px;letter-spacing:.06em;text-transform:uppercase;font-weight:500;color:var(--muted)}
-.rec-row{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) 96px 120px 120px auto;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line-soft)}
+.rec-row{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) 90px 104px 120px 120px auto;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line-soft)}
 .pre-row{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) 96px auto;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line-soft)}
 .sect-gap{margin-top:6px}
 
+/* home tiles */
+a.brand{color:inherit;text-decoration:none}
+.back{display:inline-flex;align-items:center;gap:6px;color:var(--muted);text-decoration:none;font-size:14px;margin-bottom:12px;padding:6px 0}
+.back:hover{color:var(--text)}
+.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;max-width:1000px}
+.tile{position:relative;aspect-ratio:1/1;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:20px;display:flex;flex-direction:column;justify-content:space-between;text-decoration:none;color:var(--text);min-width:0;overflow:hidden}
+.tile:hover{border-color:var(--red);background:var(--panel-2)}
+.tile .t-big{font-family:var(--f-display);font-size:clamp(40px,5.6vw,66px);font-weight:600;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.tile .t-sub{font-size:14px;color:var(--muted);line-height:1.45}
+.tile .t-sub b{color:var(--text);font-weight:600}
+.tile .t-go{position:absolute;top:12px;right:18px;font-size:30px;line-height:1;color:var(--faint)}
+.tile:hover .t-go{color:var(--red-hi)}
+.tile.income{background:var(--panel-2);border-color:#3a3a42}
+.tile.income .t-big{color:var(--red-hi)}
+@media (max-width:720px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.tile{padding:15px;border-radius:16px}.tile .t-sub{font-size:12.5px}.tile .t-go{right:14px;top:10px}}
 /* voice sheet + fab */
-.fab{position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(88px + env(safe-area-inset-bottom,0px));z-index:30;display:flex;align-items:center;gap:9px;background:var(--red);color:#fff;border:0;border-radius:99px;padding:13px 20px 13px 16px;font-weight:600;cursor:pointer;box-shadow:0 8px 28px rgba(0,0,0,.55)}
+.fab{position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:30;display:flex;align-items:center;gap:9px;background:var(--red);color:#fff;border:0;border-radius:99px;padding:13px 20px 13px 16px;font-weight:600;cursor:pointer;box-shadow:0 8px 28px rgba(0,0,0,.55)}
 .fab:hover{background:var(--red-hi)}
 .fab svg{width:20px;height:20px}
 .scrim{position:fixed;inset:0;background:rgba(0,0,0,.66);z-index:40;display:flex;align-items:flex-end;justify-content:center}
@@ -174,7 +189,7 @@ tr.cur td{background:var(--panel-2)}
 .found .it{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:10px 0;border-top:1px solid var(--line-soft);align-items:center}
 .found .it small{display:block;color:var(--muted)}
 .found .it.bad{color:var(--warn)}
-#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(150px + env(safe-area-inset-bottom,0px));background:var(--text);color:#111;border-radius:8px;padding:9px 16px;font-size:14px;font-weight:500;z-index:60;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90%}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(90px + env(safe-area-inset-bottom,0px));background:var(--text);color:#111;border-radius:8px;padding:9px 16px;font-size:14px;font-weight:500;z-index:60;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90%}
 #toast.show{opacity:1}
 
 @media (max-width:420px){.form.va-form{grid-template-columns:repeat(2,minmax(0,1fr))}.form.va-form .fld.span2{grid-column:1/-1}}
@@ -183,13 +198,13 @@ tr.cur td{background:var(--panel-2)}
   .rec-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)} .rec-row .btn{justify-self:start}
 }
 @media (max-width:720px){
-  .app{padding-block:14px 120px}
+  .app{padding-block:14px 100px}
   .tabs{position:fixed;left:0;right:0;bottom:0;z-index:35;margin:0;background:var(--panel);border-top:1px solid var(--line);border-bottom:0;
         padding:4px max(6px,env(safe-area-inset-right,0px)) calc(4px + env(safe-area-inset-bottom,0px)) max(6px,env(safe-area-inset-left,0px));justify-content:space-between;gap:0}
   .tabs a{flex:1;text-align:center;padding:12px 2px;font-size:12.5px;border-bottom:0;margin:0;border-top:2px solid transparent}
   .tabs a[aria-current=page]{border-top-color:var(--red);border-bottom:0}
-  .fab{bottom:calc(76px + env(safe-area-inset-bottom,0px));padding:12px 16px 12px 14px}
-  #toast{bottom:calc(140px + env(safe-area-inset-bottom,0px))}
+  .fab{bottom:calc(16px + env(safe-area-inset-bottom,0px));padding:12px 16px 12px 14px}
+  #toast{bottom:calc(84px + env(safe-area-inset-bottom,0px))}
   .head h1{font-size:32px}
   .hero{grid-template-columns:1fr 1fr}
   .hero>div:first-child{grid-column:1/-1;border-bottom:1px solid var(--line)}
@@ -316,7 +331,8 @@ function defaultSettings(){return{
   ],
   extraHolidays:[],
   cutoffs:{},
-  leave:[]
+  leave:[],
+  savings:{monthly:0,from:'',months:{}}
 }}
 var state={settings:defaultSettings(),periods:{},ledger:{}};
 var today=todayStr();
@@ -330,6 +346,7 @@ function applySettings(d){
   s.tax=Object.assign({vaSetAside:true},d.tax||{});
   ['classes','timetable','recurring','presets','extraHolidays','leave'].forEach(function(k){if(!Array.isArray(s[k]))s[k]=def[k]});
   if(!s.cutoffs||typeof s.cutoffs!=='object')s.cutoffs={};
+  s.savings=Object.assign({monthly:0,from:'',months:{}},d.savings||{});if(!s.savings.months)s.savings.months={};
   state.settings=s;
 }
 
@@ -445,7 +462,7 @@ function vaTaxSetAside(mk,vaIncome){
   return r2(Math.max(annualTax(ba+va)-annualTax(ba),0)/12);
 }
 function recurringFor(mk){
-  return S().recurring.filter(function(r){return mk>=r.from&&(!r.until||mk<=r.until)}).map(function(r){return Object.assign({},r,{amount:+r.amount||0,recurring:true,kind:'expense'})});
+  return S().recurring.filter(function(r){return mk>=r.from&&(!r.until||mk<=r.until)}).map(function(r){var a=+r.amount||0;var m=r.per==='week'?Math.round(a*lastDay(mk)/7):a;return Object.assign({},r,{amount:m,base:a,recurring:true,kind:'expense'})});
 }
 function summary(mk){
   var ses=sessionsFor(mk),va=sum(ses,function(s){return +s.rate||0});
@@ -458,7 +475,7 @@ function summary(mk){
   var gross=va+be.gross+extra;
   var takeHome=r2(va+be.net+extra-tax);
   var cats={};spendE.forEach(function(e){var c=e.category||'Other';cats[c]=(cats[c]||0)+(+e.amount||0)});
-  return{mk:mk,ses:ses,va:va,vaEarned:vaEarned,vaMins:sum(ses,function(s){return dur(s.start,s.end)}),be:be,extra:extra,spend:spend,spendE:spendE,tax:tax,gross:gross,takeHome:takeHome,left:r2(takeHome-spend),cats:cats};
+  return{mk:mk,ses:ses,va:va,vaEarned:vaEarned,vaMins:sum(ses,function(s){return dur(s.start,s.end)}),be:be,extra:extra,spend:spend,spendE:spendE,tax:tax,gross:gross,takeHome:takeHome,savings:savingsFor(mk),left:r2(takeHome-spend-savingsFor(mk)),cats:cats};
 }
 
 /* ================================================================== UI state */
@@ -466,7 +483,7 @@ var ui={
   view:'overview',month:mkOf(today),vaMonth:payMonthOf(today),moneyMonth:mkOf(today),beMonth:mkOf(today),beYear:+today.slice(0,4),
   venue:'all',fill:null,armed:null,
   va:null,money:null,slip:null,slipOpen:false,
-  nc:{name:'',venue:'',rate:230},ntt:{dow:1,classId:'',start:'06:00'},nrec:{label:'',category:'',amount:'',pct:'',from:'',until:''},npre:{label:'',category:'',amount:''},nhol:{date:'',name:''},nleave:{from:'',to:'',label:''},fcYear:+today.slice(0,4),ncut:{mk:'',date:''},
+  nc:{name:'',venue:'',rate:230},ntt:{dow:1,classId:'',start:'06:00'},nrec:{label:'',category:'',amount:'',per:'month',pct:'',from:'',until:''},npre:{label:'',category:'',amount:''},nhol:{date:'',name:''},nleave:{from:'',to:'',label:''},fcYear:+today.slice(0,4),ncut:{mk:'',date:''},
   voice:{open:false,text:'',partial:'',listening:false,busy:false,items:null,error:'',via:''}
 };
 var caps={dict:null,sample:null,dl:null};
@@ -513,14 +530,9 @@ function chartSvg(mk){
   return o+'</svg><div class="legend"><span><i style="background:#e3262d"></i>Take-home</span><span><i style="background:#5b5b66"></i>Spending</span></div>';
 }
 function wfRow(l,sub,v,cls,sign){return '<div class="r '+(cls||'')+'"><div class="l">'+l+(sub?'<small>'+sub+'</small>':'')+'</div><div class="v">'+(sign?'<span class="sign-m">'+sign+' </span>':'')+v+'</div></div>'}
-function viewOverview(){
-  var mk=ui.month,s=summary(mk),be=s.be,vp=vaPayday(mk),bp=bePayday(mk),per=period(mk);
-  var empty=!s.ses.length&&!be.has&&!s.extra&&!s.spend;
-  var h1='<div class="head"><div><h1>Overview</h1><p>What comes in, what the taxman and your payslip take, and what is left.</p></div>'+stepper('overview',monthLabel(mk))+'</div>';
-  var hero='<div class="hero"><div><span class="lab">Left to save</span><span class="big-num '+(s.left<0?'':'red')+'">'+R(s.left)+'</span><span class="sub">Save / car, after tax, deductions and spending</span></div>'+
-    '<div><span class="lab">Take-home</span><span class="mid">'+R(s.takeHome)+'</span><span class="sub">After PAYE, UIF, loan and tax set-aside</span></div>'+
-    '<div><span class="lab">Spending</span><span class="mid">'+R(s.spend)+'</span><span class="sub">'+Object.keys(s.cats).length+(Object.keys(s.cats).length===1?' category':' categories')+'</span></div></div>';
-  var wf='<div class="card"><h2>Gross to take-home <small>paid in '+monthLabel(mk)+'</small></h2><div class="wf">'+
+function wfCard(mk){
+  var s=summary(mk),be=s.be,vp=vaPayday(mk),bp=bePayday(mk),per=period(mk);
+  return '<div class="card" id="breakdown"><h2>'+monthLabel(mk)+' <small>gross to what is left</small></h2><div class="wf">'+
     wfRow('Virgin Active classes',s.ses.length?s.ses.length+' classes · invoice '+fmtDs(per.start)+' to '+fmtDs(per.end)+' · paid '+fmtD(vp.date)+(per.end>=today?' · forecast':''):'No classes in this invoice period yet',R(s.va),'')+
     wfRow('B-Active salary',be.mode==='legacy'?'As recorded in your old sheet, before payslip deductions':(be.unpaid?'Basic '+R(be.basic)+' less unpaid leave '+R(be.unpaid):'Basic salary')+' · paid '+fmtD(bp.date),R(be.gross),'')+
     (s.extra?wfRow('Extra income','',R(s.extra),'','+'):'')+
@@ -531,37 +543,63 @@ function viewOverview(){
     (be.other?wfRow('Other payslip deductions','',R(be.other),'','−'):'')+
     (s.tax?wfRow('Tax set aside on Virgin Active','Estimate for SARS. This income has no tax taken off at source.',R(s.tax),'','−'):'')+
     wfRow('Take-home','',R(s.takeHome),'tot')+
-    wfRow('Spending','Bills, travel and everything you logged',R(s.spend),'','−')+
-    wfRow('Left to save','',R(s.left),'tot final')+
+    wfRow('Spending','Petrol and everything you logged',R(s.spend),'','−')+
+    (s.savings?wfRow('Savings',savedDone(mk)?'Moved to savings':'Planned',R(s.savings),'','−'):'')+
+    wfRow('Left over','',R(s.left),'tot final')+
     '</div></div>';
-  var cats=Object.keys(s.cats).sort(function(a,b){return s.cats[b]-s.cats[a]});var mx=cats.length?s.cats[cats[0]]:1;
-  var spend='<div class="card"><h2>Where it went <small>'+R(s.spend)+'</small></h2>'+(cats.length?'<div class="bars">'+cats.map(function(c){return '<div class="bar"><div class="t"><span>'+esc(c)+'</span><span>'+R(s.cats[c])+'</span></div><div class="rail"><i style="width:'+Math.max(3,s.cats[c]/mx*100)+'%"></i></div></div>'}).join('')+'</div>':'<div class="empty"><b>No spending logged</b>Use the Money tab or the Quick add button.</div>')+'</div>';
-  var up=upcoming();
-  var coming='<div class="card"><h2>Coming up</h2>'+up.map(function(u){return '<div class="mrow" style="grid-template-columns:minmax(0,1fr) auto auto"><div><b style="font-weight:500">'+esc(u.what)+'</b><div class="note">'+fmtDY(u.date)+'</div></div><span class="tnum">'+(u.est?'<span class="faint">about </span>':'')+R(u.amount)+'</span>'+payStatus(u.date)+'</div>'}).join('')+'</div>';
-  var chart='<div class="card"><h2>Last six months</h2>'+chartSvg(mk)+'</div>';
-  var hint=empty?'<div class="empty" style="margin-bottom:18px"><b>Nothing recorded for '+monthLabel(mk)+' yet</b>Add classes on the Virgin Active tab, or press Quick add and say what you taught.</div>':'';
-  return h1+hero+hint+'<div class="grid2"><div class="stack">'+wf+chart+'</div><div class="stack">'+coming+spend+'</div></div>'+yearCard();
+}
+function spendCard(mk){
+  var s=summary(mk),cats=Object.keys(s.cats).sort(function(a,b){return s.cats[b]-s.cats[a]}),mx=cats.length?s.cats[cats[0]]:1;
+  return '<div class="card"><h2>Where it went <small>'+R(s.spend)+'</small></h2>'+(cats.length?'<div class="bars">'+cats.map(function(c){return '<div class="bar"><div class="t"><span>'+esc(c)+'</span><span>'+R(s.cats[c])+'</span></div><div class="rail"><i style="width:'+Math.max(3,s.cats[c]/mx*100)+'%"></i></div></div>'}).join('')+'</div>':'<div class="empty"><b>No spending logged</b>Use the Expenses tile or the Quick add button.</div>')+'</div>';
+}
+function tile(href,label,big,sub,cls){
+  return '<a class="tile '+(cls||'')+'" href="#'+href+'"><span class="lab">'+label+'</span><span class="t-big">'+big+'</span><span class="t-sub">'+sub+'</span><span class="t-go" aria-hidden="true">&#8250;</span></a>';
+}
+function savedTotal(){var sv=S().savings,t=0;Object.keys(sv.months||{}).forEach(function(k){if(sv.months[k]&&sv.months[k].done)t+=savingsFor(k)});return t}
+function viewOverview(){
+  var mk=ui.month,s=summary(mk),vp=vaPayday(mk),bp=bePayday(mk);
+  var done=s.ses.filter(function(x){return x.date<=today}).length,togo=s.ses.length-done;
+  var weekly=S().recurring.filter(function(r){return r.per==='week'&&mk>=r.from&&(!r.until||mk<=r.until)})[0];
+  var head='<div class="head"><div><h1>Overview</h1><p>Tap a square to open it.</p></div>'+stepper('overview',monthLabel(mk))+'</div>';
+  var tiles='<div class="tiles">'+
+    tile('virgin-active','Virgin Active',R(s.va),(s.ses.length?'<b>'+done+'</b> class'+(done===1?'':'es')+' done'+(togo?' · '+togo+' to go':''):'No classes yet')+'<br>Paid '+fmtD(vp.date),'income')+
+    tile('be-active','B-Active salary',s.be.has?R(s.be.net):'None','Paid '+fmtD(bp.date),'income')+
+    tile('money','Expenses',R(s.spend),weekly?esc(weekly.label)+' '+R(weekly.amount)+' a week':'This month')+
+    tile('savings','Savings',R(s.savings),savedDone(mk)?'Saved this month':(s.savings?'Planned · saved so far '+R(savedTotal()):'Not set'))+
+    tile('forecast','Forecast',String(mkParse(mk).y),'Every month of the year')+
+    tile('setup','Setup',String(S().timetable.length),'classes a week, rates and leave')+
+    '</div>';
+  return head+tiles;
 }
 function yearCard(){
-  var yr=ui.fcYear,rows='',t={n:0,va:0,be:0,th:0,left:0,spend:0};
+  var yr=mkParse(ui.month).y,rows='',t={n:0,va:0,be:0,th:0,sv:0,left:0};
   for(var i=1;i<=12;i++){
     var m=yr+'-'+pad(i),s=summary(m),per=period(m);
     var lv=(S().leave||[]).some(function(l){return l.from<=per.end&&l.to>=per.start});
-    t.n+=s.ses.length;t.va+=s.va;t.be+=s.be.net;t.th+=s.takeHome;t.left+=s.left;
-    rows+='<tr'+(m===mkOf(today)?' class="cur"':'')+'><td><a href="#overview" data-act="fc-pick" data-m="'+m+'" style="text-decoration:none">'+MONL[i-1]+'</a>'+(lv?' <span class="tag" style="color:var(--warn);border-color:#4d3b1c">Leave</span>':'')+'</td><td class="faint" style="white-space:nowrap">'+fmtDs(per.start)+' to '+fmtDs(per.end)+'</td><td class="r">'+s.ses.length+'</td><td class="r">'+Rw(s.va)+'</td><td class="r">'+(s.be.has?Rw(s.be.net):'<span class="faint">none</span>')+'</td><td class="r">'+Rw(s.takeHome)+'</td><td class="r">'+Rw(s.left)+'</td></tr>';
+    t.n+=s.ses.length;t.va+=s.va;t.be+=s.be.net;t.th+=s.takeHome;t.sv+=s.savings;t.left+=s.left;
+    rows+='<tr'+(m===ui.month?' class="cur"':'')+'><td><a href="#forecast" data-act="fc-pick" data-m="'+m+'" style="text-decoration:none">'+MONL[i-1]+'</a>'+(lv?' <span class="tag" style="color:var(--warn);border-color:#4d3b1c">Leave</span>':'')+'</td><td class="faint" style="white-space:nowrap">'+fmtDs(per.start)+' to '+fmtDs(per.end)+'</td><td class="r">'+s.ses.length+'</td><td class="r">'+Rw(s.va)+'</td><td class="r">'+(s.be.has?Rw(s.be.net):'<span class="faint">none</span>')+'</td><td class="r">'+Rw(s.takeHome)+'</td><td class="r">'+Rw(s.savings)+'</td><td class="r">'+Rw(s.left)+'</td></tr>';
   }
-  rows+='<tr><td><b>Year</b></td><td></td><td class="r"><b>'+t.n+'</b></td><td class="r"><b>'+Rw(t.va)+'</b></td><td class="r"><b>'+Rw(t.be)+'</b></td><td class="r"><b>'+Rw(t.th)+'</b></td><td class="r"><b>'+Rw(t.left)+'</b></td></tr>';
-  return '<div class="card"><h2>Every month in '+yr+' <span style="display:flex;gap:6px"><button class="btn icon small" data-act="fc-year" data-dir="-1" aria-label="Previous year">&#8249;</button><button class="btn icon small" data-act="fc-year" data-dir="1" aria-label="Next year">&#8250;</button></span></h2><div class="scroll"><table><tr><th>Paid in</th><th>Virgin Active invoice</th><th class="r">Classes</th><th class="r">Virgin Active</th><th class="r">B-Active</th><th class="r">Take-home</th><th class="r">Left to save</th></tr>'+rows+'</table></div><p class="note" style="margin-top:8px">Take-home is after PAYE, UIF, the loan and tax set-aside. Future months follow your weekly timetable, public holidays and leave. Left to save only knows the bills and spending logged so far. Tap a month to open it.</p></div>';
+  rows+='<tr><td><b>Year</b></td><td></td><td class="r"><b>'+t.n+'</b></td><td class="r"><b>'+Rw(t.va)+'</b></td><td class="r"><b>'+Rw(t.be)+'</b></td><td class="r"><b>'+Rw(t.th)+'</b></td><td class="r"><b>'+Rw(t.sv)+'</b></td><td class="r"><b>'+Rw(t.left)+'</b></td></tr>';
+  return '<div class="card"><h2>Every month in '+yr+' <span style="display:flex;gap:6px"><button class="btn icon small" data-act="fc-year" data-dir="-1" aria-label="Previous year">&#8249;</button><button class="btn icon small" data-act="fc-year" data-dir="1" aria-label="Next year">&#8250;</button></span></h2><div class="scroll"><table><tr><th>Paid in</th><th>Virgin Active invoice</th><th class="r">Classes</th><th class="r">Virgin Active</th><th class="r">B-Active</th><th class="r">Take-home</th><th class="r">Savings</th><th class="r">Left over</th></tr>'+rows+'</table></div><p class="note" style="margin-top:8px">Take-home is after PAYE, UIF, the loan and tax set-aside. Future months follow your weekly timetable, public holidays and leave. Left over is after petrol, other logged spending and savings. Tap a month for its breakdown.</p></div>';
 }
-function upcoming(){
-  var items=[];
-  for(var i=-1;i<=2;i++){
-    var mk=addMonths(mkOf(today),i);
-    var be=beMonth(mk);if(be.has&&be.net>0)items.push({what:'B-Active net pay',date:bePayday(mk).date,amount:be.net,est:be.mode==='estimate'});
-    var va=sum(sessionsFor(mk),function(s){return +s.rate||0});if(va>0)items.push({what:'Virgin Active',date:vaPayday(mk).date,amount:va,est:period(mk).end>=today});
+function viewForecast(){
+  var mk=ui.month;
+  var head='<div class="head"><div><h1>Forecast</h1><p>Every month, after tax and deductions.</p></div>'+stepper('overview',monthLabel(mk))+'</div>';
+  return head+yearCard()+'<div class="grid2" style="margin-top:18px"><div class="stack">'+wfCard(mk)+'</div><div class="stack"><div class="card"><h2>Last six months</h2>'+chartSvg(mk)+'</div>'+spendCard(mk)+'</div></div>';
+}
+function savingsFor(mk){var sv=S().savings,m=(sv.months||{})[mk];if(m&&m.amount!=null&&m.amount!=='')return +m.amount;return (sv.from&&mk>=sv.from)?(+sv.monthly||0):0}
+function savedDone(mk){var m=(S().savings.months||{})[mk];return !!(m&&m.done)}
+function viewSavings(){
+  var sv=S().savings,yr=mkParse(ui.month).y,rows='',plan=0,done=0;
+  for(var i=1;i<=12;i++){
+    var m=yr+'-'+pad(i),a=savingsFor(m),d=savedDone(m);plan+=a;if(d)done+=a;
+    rows+='<div class="mrow" style="grid-template-columns:110px minmax(0,1fr) auto"><div'+(m===mkOf(today)?' style="font-weight:600"':'')+'>'+MONL[i-1]+'</div><div><input class="cell-in" type="number" inputmode="decimal" step="any" min="0" data-sv="'+m+'" value="'+esc(a||'')+'" placeholder="0" aria-label="Amount for '+MONL[i-1]+'" style="max-width:150px"></div><button class="btn small'+(d?' primary':'')+'" data-act="sv-done" data-m="'+m+'">'+(d?'Saved':'Mark saved')+'</button></div>';
   }
-  var f=items.filter(function(x){return x.date>=today}).sort(function(a,b){return a.date<b.date?-1:1}).slice(0,4);
-  return f.length?f:[{what:'Nothing scheduled',date:today,amount:0}];
+  var head='<div class="head"><div><h1>Savings</h1><p>Set an amount to put away each month, then tick it off once the money has moved.</p></div></div>';
+  var hero='<div class="hero"><div><span class="lab">Saved so far</span><span class="big-num red">'+R(savedTotal())+'</span><span class="sub">Months you ticked as saved</span></div><div><span class="lab">Planned in '+yr+'</span><span class="mid">'+R(plan)+'</span><span class="sub">'+R(done)+' saved</span></div><div><span class="lab">Each month</span><span class="mid">'+R(sv.monthly)+'</span><span class="sub">From '+(sv.from?monthLabel(sv.from):'not set')+'</span></div></div>';
+  var set='<div class="card"><h2>Monthly saving</h2><div class="form"><div class="fld"><label for="sv-m">Amount each month (R)</label><input id="sv-m" class="cell-in" type="number" inputmode="decimal" step="any" min="0" data-sp="savings.monthly" data-num="1" value="'+esc(sv.monthly)+'"></div><div class="fld"><label for="sv-f">Starting from</label><input id="sv-f" class="cell-in" type="month" data-sp="savings.from" value="'+esc(sv.from)+'"></div></div><p class="note" style="margin-top:10px">Savings come off your take-home before the leftover figure. Change one month below if you save a different amount.</p></div>';
+  var list='<div class="card"><h2>'+yr+' <span style="display:flex;gap:6px"><button class="btn icon small" data-act="fc-year" data-dir="-1" aria-label="Previous year">&#8249;</button><button class="btn icon small" data-act="fc-year" data-dir="1" aria-label="Next year">&#8250;</button></span></h2>'+rows+'</div>';
+  return head+hero+'<div class="grid2"><div class="stack">'+list+'</div><div class="stack">'+set+'</div></div>';
 }
 
 /* ---------- virgin active */
@@ -670,8 +708,8 @@ function viewMoney(){
   var led=ledgerFor(mk).slice().sort(function(a,b){return a.date<b.date?1:a.date>b.date?-1:0});
   var rec=recurringFor(mk);
   var inc=sum(ledgerFor(mk).filter(function(e){return e.kind==='income'}),function(e){return +e.amount||0});
-  var head='<div class="head"><div><h1>Money</h1><p>Expenses and extra income. Monthly bills are added for you.</p></div>'+stepper('money',monthLabel(mk))+'</div>';
-  var stats='<div class="stats" style="grid-template-columns:repeat(3,minmax(0,1fr))"><div class="stat"><b>'+R(s.spend)+'</b><span>Spending</span></div><div class="stat"><b>'+R(inc)+'</b><span>Extra income</span></div><div class="stat"><b>'+R(sum(rec,function(r){return r.amount}))+'</b><span>Monthly bills</span></div></div>';
+  var head='<div class="head"><div><h1>Money</h1><p>Expenses and extra income. Regular costs such as petrol are added for you.</p></div>'+stepper('money',monthLabel(mk))+'</div>';
+  var stats='<div class="stats" style="grid-template-columns:repeat(3,minmax(0,1fr))"><div class="stat"><b>'+R(s.spend)+'</b><span>Spending</span></div><div class="stat"><b>'+R(inc)+'</b><span>Extra income</span></div><div class="stat"><b>'+R(sum(rec,function(r){return r.amount}))+'</b><span>Regular costs</span></div></div>';
   var presets=S().presets.map(function(p){return '<button class="chip" type="button" data-act="preset" data-id="'+p.id+'">'+esc(p.label)+(p.amount?' · '+R(p.amount):'')+'</button>'}).join('');
   var cats=allCategories();
   var form='<div class="card"><h2>'+(f.id?'Edit entry':'Add money in or out')+'</h2>'+
@@ -688,8 +726,8 @@ function viewMoney(){
     var arm=ui.armed==='e:'+e.id;
     return '<div class="mrow"><div class="when muted tnum" style="font-size:14px">'+fmtDs(e.date)+'</div><div style="min-width:0"><div>'+esc(e.label)+'</div><div class="note">'+esc(e.category||'Other')+(e.kind==='income'?' · income':'')+'</div></div><div class="tnum" style="font-weight:500;'+(e.kind==='income'?'color:var(--ok)':'')+'">'+(e.kind==='income'?'+':'')+R(e.amount)+'</div><div class="acts"><button class="btn small ghost" data-act="m-edit" data-id="'+e.id+'">Edit</button><button class="btn small '+(arm?'danger':'ghost')+'" data-act="m-del" data-id="'+e.id+'">'+(arm?'Sure?':'Delete')+'</button></div></div>';
   }).join('');
-  var recRows=rec.map(function(r){return '<div class="mrow" style="grid-template-columns:62px minmax(0,1fr) auto"><div><span class="tag">Monthly</span></div><div style="min-width:0"><div>'+esc(r.label)+'</div><div class="note">'+esc(r.category||'Other')+(r.pct?' · '+r.pct+'% of B-Active':'')+'</div></div><div class="tnum" style="font-weight:500">'+R(r.amount)+'</div></div>'}).join('');
-  var list='<div class="card"><h2>'+monthLabel(mk)+' <small>'+(led.length+rec.length)+' entries</small></h2>'+((led.length||rec.length)?rows+recRows:'<div class="empty"><b>Nothing logged this month</b>Add an expense, or tap Quick add and say it out loud.</div>')+'<p class="note" style="margin-top:12px">Monthly bills are managed in Setup.</p></div>';
+  var recRows=rec.map(function(r){return '<div class="mrow" style="grid-template-columns:62px minmax(0,1fr) auto"><div><span class="tag">Monthly</span></div><div style="min-width:0"><div>'+esc(r.label)+'</div><div class="note">'+esc(r.category||'Other')+(r.per==='week'?' · '+R(r.base)+' a week':'')+(r.pct?' · '+r.pct+'% of B-Active':'')+'</div></div><div class="tnum" style="font-weight:500">'+R(r.amount)+'</div></div>'}).join('');
+  var list='<div class="card"><h2>'+monthLabel(mk)+' <small>'+(led.length+rec.length)+' entries</small></h2>'+((led.length||rec.length)?rows+recRows:'<div class="empty"><b>Nothing logged this month</b>Add an expense, or tap Quick add and say it out loud.</div>')+'<p class="note" style="margin-top:12px">Regular costs are managed in Setup.</p></div>';
   return head+stats+'<div class="grid2"><div class="stack">'+form+'</div><div class="stack">'+list+'</div></div>';
 }
 
@@ -719,10 +757,10 @@ function viewSetup(){
     '<div class="fld"><label for="s-la">Balance is after month</label><input id="s-la" class="cell-in" type="month" data-sp="be.loan.asOf" value="'+esc(b.loan.asOf)+'"></div>'+
     '<div class="fld wide"><label style="display:flex;gap:10px;align-items:center;text-transform:none;letter-spacing:0;font-size:14px;color:var(--text)"><input type="checkbox" data-sp="tax.vaSetAside" '+(st.tax.vaSetAside?'checked':'')+'> Set tax aside on Virgin Active income</label><span class="note">Virgin Active does not take tax off. This estimates the extra SARS tax on top of your B-Active salary using the 2026/27 tables, and takes it off your take-home. It is an estimate, not tax advice.</span></div>'+
     '</div></div>';
-  var rec='<div class="card"><h2>Monthly bills <small>Added to every month</small></h2>'+
-    (st.recurring.length?st.recurring.map(function(r){var base='recurring#'+r.id,arm=ui.armed==='r:'+r.id;return '<div class="rec-row">'+setupInput(base+'.label',r.label,{label:'Name'})+setupInput(base+'.category',r.category,{label:'Category'})+setupInput(base+'.amount',r.amount,{num:1,label:'Amount',ph:'R'})+'<input class="cell-in" type="month" data-sp="'+base+'.from" value="'+esc(r.from)+'" aria-label="From month"><input class="cell-in" type="month" data-sp="'+base+'.until" value="'+esc(r.until||'')+'" aria-label="Until month"><button class="btn small '+(arm?'danger':'ghost')+'" data-act="rec-del" data-id="'+r.id+'">'+(arm?'Sure?':'Remove')+'</button></div>'}).join(''):'<div class="empty">No monthly bills yet.</div>')+
-    '<form class="form" data-form="nrec" style="margin-top:14px"><div class="fld"><label for="nr-l">Name</label><input id="nr-l" data-b="nrec.label" value="'+esc(ui.nrec.label)+'" placeholder="Cell C" required></div><div class="fld"><label for="nr-c">Category</label><input id="nr-c" list="cats" data-b="nrec.category" value="'+esc(ui.nrec.category)+'" placeholder="Phone"></div><div class="fld"><label for="nr-a">Amount (R)</label><input id="nr-a" type="number" step="any" data-b="nrec.amount" value="'+esc(ui.nrec.amount)+'" required></div><div class="fld"><label for="nr-f">From month</label><input id="nr-f" type="month" data-b="nrec.from" value="'+esc(ui.nrec.from||mkOf(today))+'" required></div><div class="actions"><button class="btn" type="submit">Add monthly bill</button></div></form>'+
-    '<p class="note" style="margin-top:10px">From and until are the first and last month it applies. Leave until empty to keep it going. Loan and tax are not here any more: they come off your payslip and the tax set-aside.</p></div>';
+  var rec='<div class="card"><h2>Regular costs <small>Added to every month</small></h2>'+
+    (st.recurring.length?st.recurring.map(function(r){var base='recurring#'+r.id,arm=ui.armed==='r:'+r.id;return '<div class="rec-row">'+setupInput(base+'.label',r.label,{label:'Name'})+setupInput(base+'.category',r.category,{label:'Category'})+setupInput(base+'.amount',r.amount,{num:1,label:'Amount',ph:'R'})+'<select class="cell-in" data-sp="'+base+'.per" aria-label="Per"><option value="month"'+(r.per==='week'?'':' selected')+'>a month</option><option value="week"'+(r.per==='week'?' selected':'')+'>a week</option></select>'+'<input class="cell-in" type="month" data-sp="'+base+'.from" value="'+esc(r.from)+'" aria-label="From month"><input class="cell-in" type="month" data-sp="'+base+'.until" value="'+esc(r.until||'')+'" aria-label="Until month"><button class="btn small '+(arm?'danger':'ghost')+'" data-act="rec-del" data-id="'+r.id+'">'+(arm?'Sure?':'Remove')+'</button></div>'}).join(''):'<div class="empty">No monthly bills yet.</div>')+
+    '<form class="form" data-form="nrec" style="margin-top:14px"><div class="fld"><label for="nr-l">Name</label><input id="nr-l" data-b="nrec.label" value="'+esc(ui.nrec.label)+'" placeholder="Cell C" required></div><div class="fld"><label for="nr-c">Category</label><input id="nr-c" list="cats" data-b="nrec.category" value="'+esc(ui.nrec.category)+'" placeholder="Phone"></div><div class="fld"><label for="nr-a">Amount (R)</label><input id="nr-a" type="number" step="any" data-b="nrec.amount" value="'+esc(ui.nrec.amount)+'" required></div><div class="fld"><label for="nr-p">Per</label><select id="nr-p" data-b="nrec.per"><option value="month"'+(ui.nrec.per==='week'?'':' selected')+'>Month</option><option value="week"'+(ui.nrec.per==='week'?' selected':'')+'>Week</option></select></div><div class="fld"><label for="nr-f">From month</label><input id="nr-f" type="month" data-b="nrec.from" value="'+esc(ui.nrec.from||mkOf(today))+'" required></div><div class="actions"><button class="btn" type="submit">Add regular cost</button></div></form>'+
+    '<p class="note" style="margin-top:10px">From and until are the first and last month it applies. Leave until empty to keep it going. A weekly cost is multiplied by the days in the month over 7. Loan and tax are not here: they come off your payslip and the tax set-aside.</p></div>';
   var pre='<div class="card"><h2>Expense options <small>Quick buttons on the Money tab</small></h2>'+
     st.presets.map(function(p){var base='presets#'+p.id,arm=ui.armed==='p:'+p.id;return '<div class="pre-row">'+setupInput(base+'.label',p.label,{label:'Name'})+setupInput(base+'.category',p.category,{label:'Category'})+setupInput(base+'.amount',p.amount,{num:1,label:'Usual amount',ph:'Usual R'})+'<button class="btn small '+(arm?'danger':'ghost')+'" data-act="pre-del" data-id="'+p.id+'">'+(arm?'Sure?':'Remove')+'</button></div>'}).join('')+
     '<form class="form" data-form="npre" style="margin-top:14px"><div class="fld"><label for="np-l">New option</label><input id="np-l" data-b="npre.label" value="'+esc(ui.npre.label)+'" placeholder="Data bundle" required></div><div class="fld"><label for="np-c">Category</label><input id="np-c" list="cats" data-b="npre.category" value="'+esc(ui.npre.category)+'" placeholder="Phone"></div><div class="fld"><label for="np-a">Usual amount (R)</label><input id="np-a" type="number" step="any" data-b="npre.amount" value="'+esc(ui.npre.amount)+'"></div><div class="actions"><button class="btn" type="submit">Add option</button></div></form></div>';
@@ -772,9 +810,9 @@ function doRender(){
   var scroll=app.querySelector('.sheet')?app.querySelector('.sheet').scrollTop:0;
   var body;
   var v=ui.view;
-  if(v==='virgin-active')body=viewVA();else if(v==='be-active')body=viewBE();else if(v==='money')body=viewMoney();else if(v==='setup')body=viewSetup();else body=viewOverview();
-  var nav='<nav class="tabs" aria-label="Sections">'+NAV.map(function(n){return '<a href="#'+n[0]+'"'+(ui.view===n[0]?' aria-current="page"':'')+'>'+n[1]+'</a>'}).join('')+'</nav>';
-  app.innerHTML='<header class="top"><div class="brand"><i></i>Breeze Money<small>Classes · Salary · Spending</small></div><span id="sync" class="pill">Saved</span></header>'+nav+'<main>'+body+'</main>'+
+  if(v==='virgin-active')body=viewVA();else if(v==='be-active')body=viewBE();else if(v==='money')body=viewMoney();else if(v==='setup')body=viewSetup();else if(v==='savings')body=viewSavings();else if(v==='forecast')body=viewForecast();else body=viewOverview();
+  var back=ui.view==='overview'?'':'<a class="back" href="#overview">&#8249; Overview</a>';
+  app.innerHTML='<header class="top"><a class="brand" href="#overview"><i></i>Breeze Money<small>Classes · Salary · Spending</small></a><span id="sync" class="pill">Saved</span></header>'+back+'<main>'+body+'</main>'+
     '<button class="fab" data-act="v-open">'+MIC+'Quick add</button>'+viewVoice();
   setStatus();
   if(fid){var el=document.getElementById(fid);if(el){el.focus({preventScroll:true});if(sel&&el.setSelectionRange){try{el.setSelectionRange(sel[0],sel[1])}catch(e){}}}}
@@ -816,6 +854,8 @@ document.addEventListener('change',function(e){
     if(t.hasAttribute('data-num')){val=val===''?'':+val}
     r.o[r.k]=val;markDirty('settings/main');render();return;
   }
+  var svm=t.getAttribute&&t.getAttribute('data-sv');
+  if(svm){var so=S().savings.months[svm]=S().savings.months[svm]||{};so.amount=t.value===''?0:+t.value;markDirty('settings/main');render();return}
   if(t.getAttribute&&t.getAttribute('data-sb')==='unpaidDays'){
     var b=S().be;var n=+t.value||0;if(n>0)b.unpaidDays[ui.beMonth]=n;else delete b.unpaidDays[ui.beMonth];markDirty('settings/main');render();return;
   }
@@ -826,7 +866,7 @@ document.addEventListener('submit',function(e){
   if(f==='va')submitVa();else if(f==='money')submitMoney();else if(f==='slip')submitSlip();
   else if(f==='nc'){var n=ui.nc;var id=(n.name||'c').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')+'-'+uid().slice(0,3);S().classes.push({id:id,name:n.name.trim(),venue:(n.venue||'').trim(),rate:+n.rate||0,color:['#e3262d','#ededf0','#f0a43a','#ff7aa8','#6fb3e0','#59c2b0','#b79cf0'][S().classes.length%7],active:true});ui.nc={name:'',venue:'',rate:230};markDirty('settings/main');toast('Class added');render()}
   else if(f==='ntt'){var t=ui.ntt;var cid=t.classId||(S().classes.filter(function(c){return c.active})[0]||{}).id;if(!cid)return;S().timetable.push({id:uid(),dow:+t.dow,classId:cid,start:t.start});markDirty('settings/main');toast('Added to your week');render()}
-  else if(f==='nrec'){var r=ui.nrec;S().recurring.push({id:uid(),label:r.label.trim(),category:r.category.trim()||'Other',amount:+r.amount||0,from:r.from||mkOf(today),until:''});ui.nrec={label:'',category:'',amount:'',pct:'',from:'',until:''};markDirty('settings/main');toast('Monthly bill added');render()}
+  else if(f==='nrec'){var r=ui.nrec;S().recurring.push({id:uid(),label:r.label.trim(),category:r.category.trim()||'Other',amount:+r.amount||0,per:r.per==='week'?'week':'month',from:r.from||mkOf(today),until:''});ui.nrec={label:'',category:'',amount:'',per:'month',pct:'',from:'',until:''};markDirty('settings/main');toast('Monthly bill added');render()}
   else if(f==='npre'){var p=ui.npre;S().presets.push({id:uid(),label:p.label.trim(),category:p.category.trim()||p.label.trim(),amount:p.amount===''?'':+p.amount});ui.npre={label:'',category:'',amount:''};markDirty('settings/main');toast('Option added');render()}
   else if(f==='nleave'){var l=ui.nleave;if(l.to<l.from){toast('The last day must be on or after the first day');return}
     var removed=0;(state.periods&&Object.keys(state.periods)).forEach(function(k){state.periods[k].slice().forEach(function(x){if(x.date>today&&x.date>=l.from&&x.date<=l.to){removeSession(x.id);removed++}})});
@@ -926,8 +966,9 @@ document.addEventListener('click',function(e){
       else if(sc==='money'){ui.moneyMonth=d===0?mkOf(today):addMonths(ui.moneyMonth,d);if(!ui.money.id)resetMoney(ui.money.kind)}
       else if(sc==='be'){ui.beMonth=d===0?mkOf(today):addMonths(ui.beMonth,d);ui.beYear=mkParse(ui.beMonth).y;ui.slipOpen=false}
       render();break}
-    case 'fc-year':ui.fcYear+=+t.getAttribute('data-dir');render();break;
-    case 'fc-pick':e.preventDefault();ui.month=t.getAttribute('data-m');render();window.scrollTo({top:0,behavior:'smooth'});break;
+    case 'fc-year':ui.month=addMonths(ui.month,12*(+t.getAttribute('data-dir')));render();break;
+    case 'fc-pick':e.preventDefault();ui.month=t.getAttribute('data-m');render();setTimeout(function(){var b=document.getElementById('breakdown');if(b)b.scrollIntoView({behavior:'smooth',block:'start'})},60);break;
+    case 'sv-done':{var sv=S().savings,mm=t.getAttribute('data-m');var o=sv.months[mm]=sv.months[mm]||{};o.done=!o.done;markDirty('settings/main');toast(o.done?'Marked as saved':'Marked as not saved');render();break}
     case 'be-year':ui.beYear+=+t.getAttribute('data-dir');render();break;
     case 'be-pick':e.preventDefault();ui.beMonth=t.getAttribute('data-m');ui.slipOpen=false;render();break;
     case 'venue':ui.venue=t.getAttribute('data-v');render();break;
@@ -965,7 +1006,7 @@ document.addEventListener('click',function(e){
   }
 });
 window.addEventListener('hashchange',route);
-function route(){var v=(location.hash||'').replace('#','');if(['overview','virgin-active','be-active','money','setup'].indexOf(v)<0)v='overview';ui.view=v;render();window.scrollTo(0,0)}
+function route(){var v=(location.hash||'').replace('#','');if(['overview','virgin-active','be-active','money','savings','forecast','setup'].indexOf(v)<0)v='overview';ui.view=v;render();window.scrollTo(0,0)}
 
 /* =============================================================== voice */
 function stopDict(){if(caps.dict&&ui.voice.listening){try{caps.dict.stop()}catch(e){}}ui.voice.listening=false}
