@@ -1,5 +1,5 @@
-// ApexBucks service worker. Build bc17577a8b.
-const V = 'apexbucks-bc17577a8b';
+// ApexBucks service worker. Build 4ee0278ee2.
+const V = 'apexbucks-4ee0278ee2';
 const SHELL = ["./","index.html","manifest.webmanifest","logo.jpg","icons/icon-192.png","icons/icon-512.png","icons/icon-maskable-512.png","icons/apple-touch-icon-180.png"];
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(V).then((c) => c.addAll(SHELL)));
