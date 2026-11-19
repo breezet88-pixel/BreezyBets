@@ -21,6 +21,7 @@ Open the site on a phone and choose Install app or Add to Home Screen. It then w
 - To move numbers across, download the full backup from the old version and use Restore from backup
   (the Welcome card on the first screen, or Setup, Your data).
 - Quick add uses the built-in reader and the phone's speech recognition where the browser has it.
+- Receipt scanning (photo to expenses split by type of spend) needs Claude, so it only works in the Claude version.
 - The Refresh button at the bottom also checks for a newer version of the app.
 - `brand/` holds the original logo and `icons/` holds the home-screen icons cut from it, unaltered.
 
