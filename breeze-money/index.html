@@ -508,7 +508,7 @@ function viewOverview(){
     '<div><span class="lab">Take-home</span><span class="mid">'+R(s.takeHome)+'</span><span class="sub">After PAYE, UIF, loan and tax set-aside</span></div>'+
     '<div><span class="lab">Spending</span><span class="mid">'+R(s.spend)+'</span><span class="sub">'+Object.keys(s.cats).length+(Object.keys(s.cats).length===1?' category':' categories')+'</span></div></div>';
   var wf='<div class="card"><h2>Gross to take-home <small>paid in '+monthLabel(mk)+'</small></h2><div class="wf">'+
-    wfRow('Virgin Active classes',s.ses.length?s.ses.length+' classes · invoice '+fmtDs(per.start)+' to '+fmtDs(per.end)+' · paid '+fmtD(vp.date):'No classes in this invoice period yet',R(s.va),'')+
+    wfRow('Virgin Active classes',s.ses.length?s.ses.length+' classes · invoice '+fmtDs(per.start)+' to '+fmtDs(per.end)+' · paid '+fmtD(vp.date)+(per.end>=today?' · forecast':''):'No classes in this invoice period yet',R(s.va),'')+
     wfRow('Be Active salary',be.mode==='legacy'?'As recorded in your old sheet, before payslip deductions':(be.unpaid?'Basic '+R(be.basic)+' less unpaid leave '+R(be.unpaid):'Basic salary')+' · paid '+fmtD(bp.date),R(be.gross),'')+
     (s.extra?wfRow('Extra income','',R(s.extra),'','+'):'')+
     wfRow('Gross earnings','',R(s.gross),'tot')+
@@ -534,7 +534,7 @@ function upcoming(){
   for(var i=-1;i<=2;i++){
     var mk=addMonths(mkOf(today),i);
     var be=beMonth(mk);if(be.has&&be.net>0)items.push({what:'Be Active net pay',date:bePayday(mk).date,amount:be.net,est:be.mode==='estimate'});
-    var va=sum(sessionsFor(mk),function(s){return +s.rate||0});if(va>0)items.push({what:'Virgin Active',date:vaPayday(mk).date,amount:va});
+    var va=sum(sessionsFor(mk),function(s){return +s.rate||0});if(va>0)items.push({what:'Virgin Active',date:vaPayday(mk).date,amount:va,est:period(mk).end>=today});
   }
   var f=items.filter(function(x){return x.date>=today}).sort(function(a,b){return a.date<b.date?-1:1}).slice(0,4);
   return f.length?f:[{what:'Nothing scheduled',date:today,amount:0}];
@@ -680,7 +680,7 @@ function viewSetup(){
     [1,2,3,4,5,6,0].map(function(d){var es=st.timetable.filter(function(t){return t.dow===d}).sort(function(a,b){return mins(a.start)-mins(b.start)});
       return '<div class="tt-day"><b>'+DOW[d]+'</b><div class="chips">'+(es.length?es.map(function(t){var c=classById(t.classId);return '<span class="chip"><i class="dot" style="background:'+esc(c?c.color:'#888')+'"></i>'+esc(t.start)+' '+esc(c?c.name:'Class')+' <button class="btn small ghost" style="min-height:22px;padding:0 6px;border:0" data-act="tt-del" data-id="'+t.id+'" aria-label="Remove">&times;</button></span>'}).join(''):'<span class="faint">Off</span>')+'</div></div>'}).join('')+
     '<form class="form" data-form="ntt" style="margin-top:14px"><div class="fld"><label for="tt-d">Day</label><select id="tt-d" data-b="ntt.dow" data-num="1">'+[1,2,3,4,5,6,0].map(function(d){return '<option value="'+d+'"'+(ui.ntt.dow===d?' selected':'')+'>'+DOWL[d]+'</option>'}).join('')+'</select></div><div class="fld"><label for="tt-c">Class</label><select id="tt-c" data-b="ntt.classId">'+st.classes.filter(function(c){return c.active}).map(function(c){return '<option value="'+esc(c.id)+'"'+(ui.ntt.classId===c.id?' selected':'')+'>'+esc(c.name)+'</option>'}).join('')+'</select></div><div class="fld"><label for="tt-s">Starts</label><input id="tt-s" type="time" data-b="ntt.start" value="'+esc(ui.ntt.start)+'" required></div><div class="actions"><button class="btn" type="submit">Add to week</button></div></form>'+
-    '<p class="note" style="margin-top:10px">This week was copied from your latest full week in the spreadsheet. Change it to match your real timetable.</p></div>';
+    '<p class="note" style="margin-top:10px">Your repeating week. Change it here, then use Fill from weekly timetable on the Virgin Active tab to add future invoice periods.</p></div>';
   var b=st.be;
   var be='<div class="card"><h2>Be Active payslip <small>Base: October 2026</small></h2><div class="form">'+
     '<div class="fld"><label for="s-basic">Basic salary (R)</label>'+setupInput('be.basic',b.basic,{num:1}).replace('<input','<input id="s-basic"')+'</div>'+
