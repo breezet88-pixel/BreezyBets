@@ -184,6 +184,10 @@ a.brand{color:inherit;text-decoration:none}
 .combined .big-num{display:block;font-size:56px}
 .combined .sub{font-size:13.5px;color:var(--muted);line-height:1.5}
 @media (max-width:720px){.combined .big-num{font-size:38px}.combined .cb+.cb{padding-left:14px}.combined .sub{font-size:12.5px}}
+.foot{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:36px;padding-top:18px;border-top:1px solid var(--line)}
+.foot .btn{display:inline-flex;align-items:center;gap:8px}
+.spin{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 /* savings tick */
 .tick{display:inline-flex;align-items:center;gap:10px;background:none;border:0;cursor:pointer;color:var(--muted);padding:6px 2px;font-weight:500}
 .tick .box{width:28px;height:28px;border:2px solid #4a4a52;border-radius:8px;display:grid;place-items:center;flex:none;background:var(--bg)}
@@ -205,7 +209,7 @@ a.brand{color:inherit;text-decoration:none}
 .found .it{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:10px 0;border-top:1px solid var(--line-soft);align-items:center}
 .found .it small{display:block;color:var(--muted)}
 .found .it.bad{color:var(--warn)}
-#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(90px + env(safe-area-inset-bottom,0px));background:var(--text);color:#111;border-radius:8px;padding:9px 16px;font-size:14px;font-weight:500;z-index:60;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90%}
+#toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(14px + env(safe-area-inset-top,0px));background:var(--text);color:#111;border-radius:8px;padding:9px 16px;font-size:14px;font-weight:500;z-index:60;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90%}
 #toast.show{opacity:1}
 
 @media (max-width:420px){.form.va-form{grid-template-columns:repeat(2,minmax(0,1fr))}.form.va-form .fld.span2{grid-column:1/-1}}
@@ -220,7 +224,7 @@ a.brand{color:inherit;text-decoration:none}
   .tabs a{flex:1;text-align:center;padding:12px 2px;font-size:12.5px;border-bottom:0;margin:0;border-top:2px solid transparent}
   .tabs a[aria-current=page]{border-top-color:var(--red);border-bottom:0}
   .fab{bottom:calc(16px + env(safe-area-inset-bottom,0px));padding:12px 16px 12px 14px}
-  #toast{bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+  #toast{top:calc(12px + env(safe-area-inset-top,0px))}
   .head h1{font-size:32px}
   .hero{grid-template-columns:1fr 1fr}
   .hero>div:first-child{grid-column:1/-1;border-bottom:1px solid var(--line)}
@@ -382,6 +386,7 @@ function setStatus(){
   el.className='pill '+c;el.textContent=t;
 }
 var dataVer=0;
+var REFRESH='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg>';
 function markDirty(p){dataVer++;dirty.add(p);setStatus();clearTimeout(flushTimer);flushTimer=setTimeout(flush,300)}
 function saveLocal(){try{localStorage.setItem('breeze-money',JSON.stringify(state))}catch(e){}}
 function loadLocal(){dataVer++;try{var j=JSON.parse(localStorage.getItem('breeze-money')||'null');if(j){applySettings(j.settings);state.periods=j.periods||{};state.ledger=j.ledger||{}}}catch(e){}store.loaded={s:true,p:true,l:true}}
@@ -405,13 +410,32 @@ async function flush(){
   setStatus();
 }
 var busy=function(p){return dirty.has(p)||inflight.has(p)};
+async function refreshData(){
+  if(ui.refreshing)return;
+  ui.refreshing=true;render();
+  try{
+    if(store.db){
+      clearTimeout(flushTimer);await flush();
+      var r=await Promise.all([store.db.doc('settings/main').get(),store.db.collection('periods').get(),store.db.collection('ledger').get()]);
+      if(!busy('settings/main')&&r[0].exists)applySettings(clone(r[0].data()));
+      var np={};r[1].docs.forEach(function(d){np[d.id]=clone(d.data()).sessions||[]});
+      Object.keys(state.periods).forEach(function(k){if(busy('periods/'+k))np[k]=state.periods[k]});
+      state.periods=np;
+      var nl={};r[2].docs.forEach(function(d){nl[d.id]=clone(d.data()).entries||[]});
+      Object.keys(state.ledger).forEach(function(k){if(busy('ledger/'+k))nl[k]=state.ledger[k]});
+      state.ledger=nl;
+    }else{loadLocal()}
+    dataVer++;ui.lastRefresh=new Date();toast('Refreshed. Everything is up to date');
+  }catch(e){toast('Could not refresh. Check your connection and try again')}
+  ui.refreshing=false;render();
+}
 async function initStore(){
   var db=null;
   try{db=await (window.claude&&window.claude.use?window.claude.use('db'):null)}catch(e){db=null}
   if(!db){store.mode='local';loadLocal();setStatus();render();return}
   store.db=db;store.mode='cloud';
   var t=setTimeout(function(){store.slow=true;setStatus()},10000);
-  var done=function(k){store.loaded[k]=true;if(store.loaded.s&&store.loaded.p&&store.loaded.l){clearTimeout(t);store.slow=false}setStatus();render()};
+  var done=function(k){store.loaded[k]=true;if(store.loaded.s&&store.loaded.p&&store.loaded.l){clearTimeout(t);store.slow=false;if(!ui.lastRefresh)ui.lastRefresh=new Date()}setStatus();render()};
   var onErr=function(){store.failed=true;setStatus()};
   db.doc('settings/main').onSnapshot(function(snap){
     if(!busy('settings/main')&&snap.exists)applySettings(clone(snap.data()));
@@ -577,10 +601,11 @@ function tickBtn(m,d){return '<button class="tick'+(d?' on':'')+'" role="checkbo
 function savedTotal(){var sv=S().savings,t=0;Object.keys(sv.months||{}).forEach(function(k){if(sv.months[k]&&sv.months[k].done)t+=savingsFor(k)});return t}
 function viewOverview(){
   var mk=ui.month,s=summary(mk),vp=vaPayday(mk),bp=bePayday(mk);
+  var eom=fmtDs(mk+'-'+pad(lastDay(mk)));
   var done=s.ses.filter(function(x){return x.date<=today}).length,togo=s.ses.length-done;
   var weekly=S().recurring.filter(function(r){return r.per==='week'&&mk>=r.from&&(!r.until||mk<=r.until)});
-  var head='<div class="head"><div><h1>Overview</h1><p>Tap a square to open it.</p></div>'+stepper('overview',monthLabel(mk))+'</div>';
-  var band='<div class="combined"><div class="cb"><span class="lab">Combined gross income</span><span class="big-num">'+R(s.gross)+'</span><span class="sub">Virgin Active '+R(s.va)+' + B-Active '+R(s.be.gross)+(s.extra?' + extra '+R(s.extra):'')+'</span></div><div class="cb"><span class="lab">Usable after deductions and expenses</span><span class="big-num red">'+Rw(s.usable)+'</span><span class="sub">Less deductions '+Rw(s.deductions)+' and expenses '+Rw(s.spend)+'</span></div></div>';
+  var head='<div class="head"><div><h1>Overview</h1><p>'+(mk===mkOf(today)?'What you will have earned by the end of '+MONL[mkParse(mk).m-1]+'. ':'')+'Tap a square to open it.</p></div>'+stepper('overview',monthLabel(mk))+'</div>';
+  var band='<div class="combined"><div class="cb"><span class="lab">Combined gross by '+eom+'</span><span class="big-num">'+R(s.gross)+'</span><span class="sub">Virgin Active '+R(s.va)+' + B-Active '+R(s.be.gross)+(s.extra?' + extra '+R(s.extra):'')+'</span></div><div class="cb"><span class="lab">Usable by '+eom+', after deductions and expenses</span><span class="big-num red">'+Rw(s.usable)+'</span><span class="sub">Less deductions '+Rw(s.deductions)+' and expenses '+Rw(s.spend)+'</span></div></div>';
   var tiles='<div class="tiles">'+
     tile('virgin-active','Virgin Active',R(s.va),(s.ses.length?'<b>'+done+'</b> class'+(done===1?'':'es')+' done'+(togo?' · '+togo+' to go':''):'No classes yet')+'<br>Paid '+fmtD(vp.date),'income')+
     tile('be-active','B-Active salary',s.be.has?R(s.be.net):'None','Paid '+fmtD(bp.date),'income')+
@@ -600,7 +625,7 @@ function yearCard(){
     rows+='<tr'+(m===ui.month?' class="cur"':'')+'><td><a href="#forecast" data-act="fc-pick" data-m="'+m+'" style="text-decoration:none">'+MONL[i-1]+'</a>'+(lv?' <span class="tag" style="color:var(--warn);border-color:#4d3b1c">Leave</span>':'')+'</td><td class="faint" style="white-space:nowrap">'+fmtDs(per.start)+' to '+fmtDs(per.end)+'</td><td class="r">'+s.ses.length+'</td><td class="r">'+Rw(s.va)+'</td><td class="r">'+(s.be.has?Rw(s.be.gross):'<span class="faint">none</span>')+'</td><td class="r">'+Rw(s.gross)+'</td><td class="r">'+Rw(s.deductions)+'</td><td class="r">'+Rw(s.spend)+'</td><td class="r" style="color:var(--red-hi);font-weight:600">'+Rw(s.usable)+'</td><td class="r">'+Rw(s.savings)+'</td><td class="r">'+Rw(s.left)+'</td></tr>';
   }
   rows+='<tr><td><b>Year</b></td><td></td><td class="r"><b>'+t.n+'</b></td><td class="r"><b>'+Rw(t.va)+'</b></td><td class="r"><b>'+Rw(t.be)+'</b></td><td class="r"><b>'+Rw(t.gr)+'</b></td><td class="r"><b>'+Rw(t.de)+'</b></td><td class="r"><b>'+Rw(t.ex)+'</b></td><td class="r"><b>'+Rw(t.us)+'</b></td><td class="r"><b>'+Rw(t.sv)+'</b></td><td class="r"><b>'+Rw(t.left)+'</b></td></tr>';
-  return '<div class="card"><h2>Every month in '+yr+' <span style="display:flex;gap:6px"><button class="btn icon small" data-act="fc-year" data-dir="-1" aria-label="Previous year">&#8249;</button><button class="btn icon small" data-act="fc-year" data-dir="1" aria-label="Next year">&#8250;</button></span></h2><div class="scroll"><table><tr><th>Paid in</th><th>Virgin Active invoice</th><th class="r">Classes</th><th class="r">Virgin Active</th><th class="r">B-Active</th><th class="r">Gross</th><th class="r">Deductions</th><th class="r">Expenses</th><th class="r">Usable</th><th class="r">Savings</th><th class="r">After savings</th></tr>'+rows+'</table></div><p class="note" style="margin-top:8px">Gross is Virgin Active plus B-Active before anything comes off. Deductions are PAYE, UIF, the loan and the tax set-aside on Virgin Active. Usable is gross less deductions and expenses. Future months follow your weekly timetable, public holidays and leave, and only know the costs you have set up or logged. Tap a month for its breakdown.</p></div>';
+  return '<div class="card"><h2>Every month in '+yr+' <span style="display:flex;gap:6px"><button class="btn icon small" data-act="fc-year" data-dir="-1" aria-label="Previous year"'+(yr<=2026?' disabled':'')+'>&#8249;</button><button class="btn icon small" data-act="fc-year" data-dir="1" aria-label="Next year">&#8250;</button></span></h2><div class="scroll"><table><tr><th>Paid in</th><th>Virgin Active invoice</th><th class="r">Classes</th><th class="r">Virgin Active</th><th class="r">B-Active</th><th class="r">Gross</th><th class="r">Deductions</th><th class="r">Expenses</th><th class="r">Usable</th><th class="r">Savings</th><th class="r">After savings</th></tr>'+rows+'</table></div><p class="note" style="margin-top:8px">Gross is Virgin Active plus B-Active before anything comes off. Deductions are PAYE, UIF, the loan and the tax set-aside on Virgin Active. Usable is gross less deductions and expenses. Future months follow your weekly timetable, public holidays and leave, and only know the costs you have set up or logged. Tap a month for its breakdown.</p></div>';
 }
 function viewForecast(){
   var mk=ui.month;
@@ -620,7 +645,7 @@ function viewSavings(){
   var now='<div class="card"><h2>'+monthLabel(cm)+' <small>'+R(camt)+' to save</small></h2>'+(camt>0?'<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><span class="note" style="font-size:15px">Have you put this month\'s savings away?</span>'+tickBtn(cm,savedDone(cm))+'</div>':'<p class="note">No saving is planned for this month.</p>')+'</div>';
   var hero='<div class="hero"><div><span class="lab">Saved so far</span><span class="big-num red">'+R(savedTotal())+'</span><span class="sub">Months you ticked as saved</span></div><div><span class="lab">Planned in '+yr+'</span><span class="mid">'+R(plan)+'</span><span class="sub">'+R(done)+' saved</span></div><div><span class="lab">Each month</span><span class="mid">'+R(sv.monthly)+'</span><span class="sub">From '+(sv.from?monthLabel(sv.from):'not set')+'</span></div></div>';
   var set='<div class="card"><h2>Monthly saving</h2><div class="form"><div class="fld"><label for="sv-m">Amount each month (R)</label><input id="sv-m" class="cell-in" type="number" inputmode="decimal" step="any" min="0" data-sp="savings.monthly" data-num="1" value="'+esc(sv.monthly)+'"></div><div class="fld"><label for="sv-f">Starting from</label><input id="sv-f" class="cell-in" type="month" data-sp="savings.from" value="'+esc(sv.from)+'"></div></div><p class="note" style="margin-top:10px">Savings come off your take-home before the leftover figure. Change one month below if you save a different amount.</p></div>';
-  var list='<div class="card"><h2>'+yr+' <span style="display:flex;gap:6px"><button class="btn icon small" data-act="fc-year" data-dir="-1" aria-label="Previous year">&#8249;</button><button class="btn icon small" data-act="fc-year" data-dir="1" aria-label="Next year">&#8250;</button></span></h2>'+rows+'</div>';
+  var list='<div class="card"><h2>'+yr+' <span style="display:flex;gap:6px"><button class="btn icon small" data-act="fc-year" data-dir="-1" aria-label="Previous year"'+(yr<=2026?' disabled':'')+'>&#8249;</button><button class="btn icon small" data-act="fc-year" data-dir="1" aria-label="Next year">&#8250;</button></span></h2>'+rows+'</div>';
   return head+hero+'<div class="grid2"><div class="stack">'+now+list+'</div><div class="stack">'+set+'</div></div>';
 }
 
@@ -835,7 +860,9 @@ function doRender(){
   var v=ui.view;
   if(v==='virgin-active')body=viewVA();else if(v==='be-active')body=viewBE();else if(v==='money')body=viewMoney();else if(v==='setup')body=viewSetup();else if(v==='savings')body=viewSavings();else if(v==='forecast')body=viewForecast();else body=viewOverview();
   var back=ui.view==='overview'?'':'<a class="back" href="#overview">&#8249; Overview</a>';
-  app.innerHTML='<header class="top"><a class="brand" href="#overview" aria-label="Breeze Money, home">'+LOGO+'<span class="bname">Breeze Money<small>Apex by Breeze</small></span></a><span id="sync" class="pill">Saved</span></header>'+back+'<main>'+body+'</main>'+
+  var lr=ui.lastRefresh;
+  var foot='<footer class="foot"><button class="btn" data-act="refresh"'+(ui.refreshing?' disabled':'')+'>'+REFRESH.replace('<svg ','<svg '+(ui.refreshing?'class="spin" ':''))+(ui.refreshing?'Refreshing':'Refresh')+'</button><span class="note">'+(lr?'Last refreshed '+pad(lr.getHours())+':'+pad(lr.getMinutes()):'Use this after adding or removing anything')+'</span></footer>';
+  app.innerHTML='<header class="top"><a class="brand" href="#overview" aria-label="Breeze Money, home">'+LOGO+'<span class="bname">Breeze Money<small>Apex by Breeze</small></span></a><span id="sync" class="pill">Saved</span></header>'+back+'<main>'+body+'</main>'+foot+
     '<button class="fab" data-act="v-open">'+MIC+'Quick add</button>'+viewVoice();
   setStatus();
   if(fid){var el=document.getElementById(fid);if(el){el.focus({preventScroll:true});if(sel&&el.setSelectionRange){try{el.setSelectionRange(sel[0],sel[1])}catch(e){}}}}
@@ -989,8 +1016,9 @@ document.addEventListener('click',function(e){
       else if(sc==='money'){ui.moneyMonth=d===0?mkOf(today):addMonths(ui.moneyMonth,d);if(!ui.money.id)resetMoney(ui.money.kind)}
       else if(sc==='be'){ui.beMonth=d===0?mkOf(today):addMonths(ui.beMonth,d);ui.beYear=mkParse(ui.beMonth).y;ui.slipOpen=false}
       render();break}
+    case 'refresh':refreshData();break;
     case 'tile':ui.vaMonth=ui.month;ui.moneyMonth=ui.month;ui.beMonth=ui.month;ui.beYear=mkParse(ui.month).y;ui.slipOpen=false;ui.fill=null;if(!ui.money.id)resetMoney(ui.money.kind);if(!ui.va.id)resetVa(ui.va);break;
-    case 'fc-year':ui.month=addMonths(ui.month,12*(+t.getAttribute('data-dir')));render();break;
+    case 'fc-year':{var ny=mkParse(ui.month).y+(+t.getAttribute('data-dir'));if(ny<2026)break;ui.month=addMonths(ui.month,12*(+t.getAttribute('data-dir')));render();break}
     case 'fc-pick':e.preventDefault();ui.month=t.getAttribute('data-m');render();setTimeout(function(){var b=document.getElementById('breakdown');if(b)b.scrollIntoView({behavior:'smooth',block:'start'})},60);break;
     case 'sv-done':{var sv=S().savings,mm=t.getAttribute('data-m');var o=sv.months[mm]=sv.months[mm]||{};o.done=!o.done;markDirty('settings/main');toast(o.done?'Ticked as saved':'Saving unticked');render();break}
     case 'be-year':ui.beYear+=+t.getAttribute('data-dir');render();break;
