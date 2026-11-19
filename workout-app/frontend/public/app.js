@@ -70,7 +70,16 @@ function getSavedWod() { try { return JSON.parse(localStorage.getItem(SAVED_KEY)
 async function saveWodOffline(day, w) {
   if ('caches' in window) {
     const cache = await caches.open(IMG_CACHE);
-    await Promise.all(w.exercises.filter((e) => e.image).map((e) => cache.add(assetUrl(e.image))));
+    await Promise.all(w.exercises.filter((e) => e.image).map(async (e) => {
+      const src = assetUrl(e.image);
+      // Pictures may live on another site (Vercel Blob). Ask normally first; if that site does not allow it,
+      // store the picture as-is ("opaque"), which the browser can still show offline.
+      try {
+        let res = await fetch(src, { mode: 'cors' }).catch(() => null);
+        if (!res || !res.ok) res = await fetch(src, { mode: 'no-cors' });
+        await cache.put(src, res);
+      } catch { /* a picture that cannot be fetched now is skipped; the workout text is still saved */ }
+    }));
   }
   try { localStorage.setItem(SAVED_KEY, JSON.stringify({ day, workout: w })); }
   catch { throw new Error('Your browser would not let us save on this device.'); }

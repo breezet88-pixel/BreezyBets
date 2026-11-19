@@ -1,6 +1,7 @@
 // Helpers shared by the member app and the coach admin page. No framework.
 export const API = String(globalThis.FL_API_URL || '').replace(/\/$/, '');
-export const assetUrl = (file) => `${API}/uploads/${file}`;
+// Pictures are either a file name served by the API (local hosting) or a full https address (Vercel Blob).
+export const assetUrl = (file) => (/^https:\/\//.test(file) ? file : `${API}/uploads/${file}`);
 
 export function h(tag, attrs, ...kids) {
   const el = document.createElement(tag);

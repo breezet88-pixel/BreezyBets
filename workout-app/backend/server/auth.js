@@ -1,4 +1,5 @@
-// Passwords (scrypt), login sessions (random tokens, only their SHA-256 is stored) and rate limiting.
+// Passwords (scrypt), login sessions (random tokens; only their SHA-256 is stored),
+// one-time email links, and rate-limit counters. All data lives in the database store.
 import crypto from 'node:crypto';
 import { promisify } from 'node:util';
 
@@ -18,29 +19,33 @@ export async function verifyPassword(password, stored) {
   return got.length === want.length && crypto.timingSafeEqual(got, want);
 }
 
-// Used so that "no such email" takes as long as "wrong password".
+// Used so that "no such account" takes as long as "wrong password".
 export const DUMMY_HASH = await hashPassword('not-a-real-password');
 
 const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
+const newToken = () => crypto.randomBytes(32).toString('base64url');
 
-export function createSession(db, userId, ttlMs) {
-  const token = crypto.randomBytes(32).toString('base64url');
+export async function createSession(store, userId, ttlMs) {
+  const token = newToken();
   const now = Date.now();
-  db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(now);
-  db.prepare('INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?,?,?)').run(sha256(token), userId, now + ttlMs);
+  await store.batch([
+    ['DELETE FROM sessions WHERE expires_at < ?', [now]],
+    ['INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?,?,?)', [sha256(token), userId, now + ttlMs]],
+  ]);
   return token;
 }
 
-export function userForToken(db, token) {
+export async function userForToken(store, token) {
   if (!token) return null;
-  return db.prepare(
+  return (await store.get(
     `SELECT u.id, u.email, u.name, u.role, u.blocked, u.email_verified FROM sessions s JOIN users u ON u.id = s.user_id
      WHERE s.token_hash = ? AND s.expires_at > ? AND u.blocked = 0`,
-  ).get(sha256(token), Date.now()) || null;
+    [sha256(token), Date.now()],
+  )) || null;
 }
 
-export function deleteSession(db, token) {
-  if (token) db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(sha256(token));
+export async function deleteSession(store, token) {
+  if (token) await store.run('DELETE FROM sessions WHERE token_hash = ?', [sha256(token)]);
 }
 
 export function bearer(req) {
@@ -48,38 +53,43 @@ export function bearer(req) {
   return m ? m[1] : null;
 }
 
-// Simple in-memory counter per key (IP) within a time window.
-export class Limiter {
-  constructor() { this.hits = new Map(); }
-  count(key) {
-    const e = this.hits.get(key);
-    if (!e || e.resetAt < Date.now()) { this.hits.delete(key); return 0; }
-    return e.n;
-  }
-  add(key, windowMs) {
-    const e = this.hits.get(key);
-    if (!e || e.resetAt < Date.now()) this.hits.set(key, { n: 1, resetAt: Date.now() + windowMs });
-    else e.n++;
-  }
-  clear(key) { this.hits.delete(key); }
-}
-
-// ---- one-time email links (verify / reset). Only the hash is stored. ----
-export function createEmailToken(db, userId, kind, ttlMs) {
-  const token = crypto.randomBytes(32).toString('base64url');
+// ---- one-time email links (verify / reset). Only the hash is stored; the newest link replaces older ones. ----
+export async function createEmailToken(store, userId, kind, ttlMs) {
+  const token = newToken();
   const now = Date.now();
-  db.prepare('DELETE FROM email_tokens WHERE expires_at < ?').run(now);
-  db.prepare('DELETE FROM email_tokens WHERE user_id = ? AND kind = ?').run(userId, kind); // newest link wins
-  db.prepare('INSERT INTO email_tokens (token_hash, user_id, kind, expires_at) VALUES (?,?,?,?)').run(sha256(token), userId, kind, now + ttlMs);
+  await store.batch([
+    ['DELETE FROM email_tokens WHERE expires_at < ?', [now]],
+    ['DELETE FROM email_tokens WHERE user_id = ? AND kind = ?', [userId, kind]],
+    ['INSERT INTO email_tokens (token_hash, user_id, kind, expires_at) VALUES (?,?,?,?)', [sha256(token), userId, kind, now + ttlMs]],
+  ]);
   return token;
 }
 
-// Returns the user id if the token is valid, and uses it up. Otherwise null.
-export function consumeEmailToken(db, token, kind) {
+// Uses the link up in one step (so it cannot be used twice, even by two requests at once).
+// Returns the user id, or null if the link is unknown, expired or already used.
+export async function consumeEmailToken(store, token, kind) {
   if (!/^[A-Za-z0-9_-]{20,100}$/.test(String(token || ''))) return null;
-  const hash = sha256(token);
-  const row = db.prepare('SELECT user_id FROM email_tokens WHERE token_hash = ? AND kind = ? AND expires_at > ?').get(hash, kind, Date.now());
-  if (!row) return null;
-  db.prepare('DELETE FROM email_tokens WHERE token_hash = ?').run(hash);
-  return row.user_id;
+  const row = await store.get('DELETE FROM email_tokens WHERE token_hash = ? AND kind = ? AND expires_at > ? RETURNING user_id', [sha256(token), kind, Date.now()]);
+  return row ? row.user_id : null;
+}
+
+// ---- rate limits: a counter per key (an IP address, an account, ...) inside a time window ----
+export function limits(store) {
+  return {
+    async count(key) {
+      const r = await store.get('SELECT n FROM limits WHERE key = ? AND reset_at > ?', [key, Date.now()]);
+      return r ? r.n : 0;
+    },
+    async add(key, windowMs) {
+      const now = Date.now();
+      await store.batch([
+        ['DELETE FROM limits WHERE reset_at < ?', [now - 24 * 60 * 60 * 1000]],
+        [`INSERT INTO limits (key, n, reset_at) VALUES (?, 1, ?)
+          ON CONFLICT(key) DO UPDATE SET
+            n = CASE WHEN limits.reset_at <= ? THEN 1 ELSE limits.n + 1 END,
+            reset_at = CASE WHEN limits.reset_at <= ? THEN excluded.reset_at ELSE limits.reset_at END`, [key, now + windowMs, now, now]],
+      ]);
+    },
+    async clear(key) { await store.run('DELETE FROM limits WHERE key = ?', [key]); },
+  };
 }

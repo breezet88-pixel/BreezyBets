@@ -1,7 +1,6 @@
-# FitLibrary (workout-app/): tests every push, then deploys the API and the website to Fly.io.
-# One-time setup: workout-app/docs/hosting.md ("Automatic deploys").
-# Until the secrets exist, the deploy job is skipped with a notice and the run still passes.
-name: FitLibrary test and deploy
+# FitLibrary (workout-app/): runs all tests on every push.
+# Deploying is done by Vercel itself, which watches this repository (see workout-app/docs/hosting.md).
+name: FitLibrary tests
 
 on:
   push:
@@ -9,11 +8,10 @@ on:
     paths:
       - 'workout-app/**'
       - '.github/workflows/fitlibrary-deploy.yml'
+  pull_request:
+    paths:
+      - 'workout-app/**'
   workflow_dispatch:
-
-concurrency:
-  group: fitlibrary-deploy
-  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -26,93 +24,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Back end tests
+      - name: Back end tests (local storage, and Turso + Vercel Blob protocols)
         working-directory: workout-app/backend
         run: npm test
       - name: Front end tests
         working-directory: workout-app/frontend
         run: npm test
-
-  deploy:
-    needs: test
-    runs-on: ubuntu-latest
-    env:
-      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-      ADMIN_USERNAME: ${{ secrets.FITLIBRARY_ADMIN_USERNAME }}
-      ADMIN_PASSWORD: ${{ secrets.FITLIBRARY_ADMIN_PASSWORD }}
-      EMAIL_API_KEY: ${{ secrets.FITLIBRARY_EMAIL_API_KEY }}
-      EMAIL_FROM: ${{ secrets.FITLIBRARY_EMAIL_FROM }}
-      # App names must be unique across all of Fly. Override with repository variables if these are taken.
-      API_APP: ${{ vars.FITLIBRARY_API_APP || 'fitlibrary-api' }}
-      WEB_APP: ${{ vars.FITLIBRARY_WEB_APP || 'fitlibrary-web' }}
-      # Only needed once you use your own domain, e.g. https://www.example.co.za
-      WEB_URL_OVERRIDE: ${{ vars.FITLIBRARY_WEB_URL }}
-      API_URL_OVERRIDE: ${{ vars.FITLIBRARY_API_URL }}
-      REGION: jnb
-    steps:
-      - name: Check that hosting is set up
-        id: ready
-        run: |
-          missing=""
-          [ -n "$FLY_API_TOKEN" ]  || missing="$missing FLY_API_TOKEN"
-          [ -n "$ADMIN_USERNAME" ] || missing="$missing FITLIBRARY_ADMIN_USERNAME"
-          [ -n "$ADMIN_PASSWORD" ] || missing="$missing FITLIBRARY_ADMIN_PASSWORD"
-          if [ -n "$missing" ]; then
-            echo "::notice::Not deployed yet. Add these repository secrets:$missing (see workout-app/docs/hosting.md)."
-            echo "go=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "go=true" >> "$GITHUB_OUTPUT"
-          fi
-          if [ -n "$ADMIN_PASSWORD" ] && [ "${#ADMIN_PASSWORD}" -lt 12 ]; then
-            echo "::warning::The FitLibrary admin password is short. Anyone who guesses it can change or delete everything. Use 12+ characters."
-          fi
-
-      - uses: actions/checkout@v4
-        if: steps.ready.outputs.go == 'true'
-      - uses: superfly/flyctl-actions/setup-flyctl@master
-        if: steps.ready.outputs.go == 'true'
-
-      - name: Work out the addresses
-        if: steps.ready.outputs.go == 'true'
-        run: |
-          web="${WEB_URL_OVERRIDE:-https://$WEB_APP.fly.dev}"
-          api="${API_URL_OVERRIDE:-https://$API_APP.fly.dev}"
-          echo "WEB_URL=${web%/}" >> "$GITHUB_ENV"
-          echo "API_URL=${api%/}" >> "$GITHUB_ENV"
-
-      - name: Create the apps and the data disk (first run only)
-        if: steps.ready.outputs.go == 'true'
-        run: |
-          for app in "$API_APP" "$WEB_APP"; do
-            flyctl status --app "$app" >/dev/null 2>&1 || flyctl apps create "$app"
-          done
-          if [ "$(flyctl volumes list --app "$API_APP" --json | jq 'length')" = "0" ]; then
-            flyctl volumes create fitlibrary_data --app "$API_APP" --region "$REGION" --size 1 --yes
-          fi
-
-      - name: Store the API settings as Fly secrets
-        if: steps.ready.outputs.go == 'true'
-        run: |
-          args=(ADMIN_USERNAME="$ADMIN_USERNAME" ADMIN_PASSWORD="$ADMIN_PASSWORD" CORS_ORIGINS="$WEB_URL" APP_URL="$WEB_URL")
-          if [ -n "$EMAIL_API_KEY" ] && [ -n "$EMAIL_FROM" ]; then
-            args+=(EMAIL_API_KEY="$EMAIL_API_KEY" EMAIL_FROM="$EMAIL_FROM")
-          fi
-          flyctl secrets set --stage --app "$API_APP" "${args[@]}"
-
-      # --ha=false: exactly one API machine. The database is one file on one disk; two machines would split the data.
-      - name: Deploy the API
-        if: steps.ready.outputs.go == 'true'
-        working-directory: workout-app/backend
-        run: flyctl deploy --remote-only --app "$API_APP" --ha=false
-
-      - name: Deploy the website
-        if: steps.ready.outputs.go == 'true'
-        working-directory: workout-app/frontend
-        run: flyctl deploy --remote-only --app "$WEB_APP" --ha=false --env API_URL="$API_URL"
-
-      - name: Check both are up
-        if: steps.ready.outputs.go == 'true'
-        run: |
-          curl -fsS --retry 10 --retry-delay 6 --retry-all-errors "$API_URL/api/health"
-          curl -fsS --retry 10 --retry-delay 6 --retry-all-errors "$WEB_URL/config.js" | grep -F "$API_URL"
-          echo "::notice::Website: $WEB_URL   Coach page: $WEB_URL/admin   API: $API_URL"
+      - name: Vercel build step
+        working-directory: workout-app
+        run: node frontend/write-config.mjs && node --check api/handler.js

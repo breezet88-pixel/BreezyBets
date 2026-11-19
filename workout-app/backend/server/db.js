@@ -1,8 +1,5 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
-
-const SCHEMA = `
+// Database schema. Works on the local SQLite file and on Turso (hosted SQLite) alike.
+export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   email TEXT NOT NULL UNIQUE,
@@ -70,25 +67,22 @@ CREATE TABLE IF NOT EXISTS feedback (
   created_at TEXT NOT NULL,
   CHECK (rating IS NOT NULL OR body <> '')
 );
+-- Counters for rate limits and login lockouts. Kept in the database (not memory) so they hold
+-- even when the host runs several copies of the server at once, as Vercel does.
+CREATE TABLE IF NOT EXISTS limits (
+  key TEXT PRIMARY KEY,
+  n INTEGER NOT NULL,
+  reset_at INTEGER NOT NULL
+);
 CREATE INDEX IF NOT EXISTS feedback_workout ON feedback(workout_id, id DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS feedback_one_rating ON feedback(workout_id, user_id) WHERE rating IS NOT NULL;
 `;
 
-export function openDb(dbPath) {
-  if (dbPath !== ':memory:') fs.mkdirSync(path.dirname(path.resolve(dbPath)), { recursive: true });
-  const db = new DatabaseSync(dbPath);
-  db.exec('PRAGMA foreign_keys = ON');
-  if (dbPath !== ':memory:') db.exec('PRAGMA journal_mode = WAL');
-  db.exec(SCHEMA);
+export async function migrate(store) {
+  await store.script(SCHEMA);
   // databases created before email verification existed
-  if (!db.prepare('PRAGMA table_info(users)').all().some((c) => c.name === 'email_verified')) {
-    db.exec('ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0');
+  const cols = await store.all('PRAGMA table_info(users)');
+  if (!cols.some((c) => c.name === 'email_verified')) {
+    await store.run('ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0');
   }
-  return db;
-}
-
-export function inTransaction(db, fn) {
-  db.exec('BEGIN');
-  try { const r = fn(); db.exec('COMMIT'); return r; }
-  catch (e) { db.exec('ROLLBACK'); throw e; }
 }

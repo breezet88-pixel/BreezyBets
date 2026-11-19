@@ -12,10 +12,14 @@ Customers can never edit or delete anything (not even their own posts). The back
 
 ```
 workout-app/
-  backend/    API only (JSON + uploaded pictures). Node, SQLite, no dependencies.
+  backend/    API (JSON + pictures). Node, no npm dependencies.
   frontend/   The website/app (static files, installable PWA). No build step, no dependencies.
-  docs/       image-prompts.md: which image tool to use and how to prompt it
+  api/        Vercel entry point: runs the backend as a Vercel Function.
+  vercel.json Vercel settings (website + API at one address).
+  docs/       hosting.md (Vercel setup), image-prompts.md, donations.md
 ```
+
+**Storage adapts to where it runs:** locally the database is a SQLite file and pictures are a folder; on Vercel the database is Turso (hosted SQLite) and pictures are in Vercel Blob. The app logic is the same code in both places.
 
 Needs Node >= 22.13. Run the two parts in two terminals:
 
@@ -44,11 +48,13 @@ If you don't set them, development mode prints a temporary admin login at start.
 | `REQUIRE_EMAIL_VERIFICATION` | on if `EMAIL_API_KEY` is set | Customers must confirm their email before posting/downloading |
 | `CORS_ORIGINS` | `http://localhost:8080` | Comma-separated website addresses allowed to call the API, e.g. `https://app.example.com` |
 | `PORT` | 3100 | |
-| `DB_PATH` / `UPLOAD_DIR` | `./data/...` | SQLite file and pictures. **Back up `data/`**, and keep it on a persistent disk. |
+| `DB_PATH` / `UPLOAD_DIR` | `./data/...` | Local SQLite file and pictures folder. **Back up `data/`** if you host this way. |
+| `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` | none | Use Turso instead of the local file (set automatically on Vercel) |
+| `BLOB_READ_WRITE_TOKEN` | none | Use Vercel Blob instead of the local folder (set automatically on Vercel) |
 | `TIMEZONE` | `Africa/Johannesburg` | Decides when "today" starts for the workout of the day |
 | `TRUST_PROXY` | false | `true` behind a proxy so rate limits see real client IPs |
 
-Sign-in uses a bearer token (no cookies), so the two parts can live on different domains. Passwords are scrypt-hashed, tokens are stored only as hashes, login and sign-up are rate-limited (per IP, and 5 wrong passwords lock an account for 15 minutes), customers are limited to 10 posts an hour, and uploads are checked by their real file bytes. Blocking a customer ends their session immediately; deleting one removes their reviews. Pictures you stop using are deleted from disk.
+Sign-in uses a bearer token (no cookies), so the two parts can live on different domains. Passwords are scrypt-hashed, tokens are stored only as hashes, login and sign-up are rate-limited (per IP, and 5 wrong passwords lock an account for 15 minutes), customers are limited to 10 posts an hour, and uploads are checked by their real file bytes. Blocking a customer ends their session immediately; deleting one removes their reviews. Pictures you stop using are deleted from storage. Uploads are limited to 4 MB.
 
 ## Front end (`frontend/`)
 
@@ -60,7 +66,7 @@ Static files in `public/`. It finds the API from `API_URL` (used by `npm start`)
 
 ## Hosting
 
-See [docs/hosting.md](docs/hosting.md): ready-made `Dockerfile` and `fly.toml` for each part (Fly.io, Johannesburg), plus email setup. Any host that runs Node with a persistent disk also works for the back end, and `frontend/public` can go on any static host (set `public/config.js` and `_headers`).
+The site is set up for **Vercel** with **Vercel Blob** (pictures) and **Turso** (database): see [docs/hosting.md](docs/hosting.md) for the 15-minute setup. Vercel redeploys on every push; GitHub Actions runs the tests. Docker/Fly.io files remain as an alternative.
 
 ## Before you launch
 

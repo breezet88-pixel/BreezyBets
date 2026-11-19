@@ -1,11 +1,6 @@
-import fs from 'node:fs';
-import path from 'node:path';
-
 export class HttpError extends Error {
   constructor(status, code, message) { super(message || code); this.status = status; this.code = code; }
 }
-
-export const IMAGE_NAME = /^[a-f0-9]{32}\.(png|jpg|webp|gif)$/;
 
 export function text(v, max, label, required = false) {
   if (v === undefined || v === null) v = '';
@@ -43,7 +38,8 @@ export function addDays(day, n) {
   return d.toISOString().slice(0, 10);
 }
 
-export function cleanWorkout(body, uploadRoot) {
+// files: the picture store; only references it could have made are accepted (existence is checked by the caller).
+export function cleanWorkout(body, files) {
   if (!body || typeof body !== 'object') throw new HttpError(400, 'invalid', 'Missing workout.');
   const list = body.exercises ?? [];
   if (!Array.isArray(list) || list.length > 100) throw new HttpError(400, 'invalid', 'A workout can have up to 100 exercises.');
@@ -57,8 +53,8 @@ export function cleanWorkout(body, uploadRoot) {
     exercises: list.map((e, i) => {
       const n = `Exercise ${i + 1}`;
       if (!e || typeof e !== 'object') throw new HttpError(400, 'invalid', `${n} is not valid.`);
-      const image = text(e.image, 80, `${n} image`);
-      if (image && (!IMAGE_NAME.test(image) || !fs.existsSync(path.join(uploadRoot, image)))) {
+      const image = text(e.image, 300, `${n} image`);
+      if (image && !files.isRef(image)) {
         throw new HttpError(400, 'invalid', `${n} image was not found. Upload it again.`);
       }
       return {

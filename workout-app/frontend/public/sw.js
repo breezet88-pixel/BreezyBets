@@ -2,8 +2,8 @@
 // pictures available offline. Anything private (sign-in, admin, downloads) is never cached.
 importScripts('/config.js');
 const API = new URL(globalThis.FL_API_URL || self.location.origin).origin;
-const SHELL = 'fl-shell-v3';
-const RUNTIME = 'fl-runtime-v3';
+const SHELL = 'fl-shell-v4';
+const RUNTIME = 'fl-runtime-v4';
 const KEEP = [SHELL, RUNTIME, 'fl-saved-v1'];
 const ASSETS = ['/', '/config.js', '/app.js', '/common.js', '/styles.css', '/manifest.webmanifest', '/icon.svg', '/icon-192.png'];
 
@@ -48,13 +48,13 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
   if (req.method !== 'GET') return;
 
-  if (url.origin === API) {
-    if (url.pathname.startsWith('/uploads/')) {
-      // picture filenames are random and never change, so cache-first is safe
-      e.respondWith(caches.match(req).then((hit) => hit || networkFirst(req)));
-    } else if (PUBLIC_API.test(url.pathname)) {
-      e.respondWith(networkFirst(req));
-    }
+  // Pictures: on the API (/uploads/) or in Vercel Blob. Their addresses never change, so cache-first is safe.
+  if ((url.origin === API && url.pathname.startsWith('/uploads/')) || url.hostname.endsWith('.public.blob.vercel-storage.com')) {
+    e.respondWith(caches.match(req).then((hit) => hit || fetch(req)));
+    return;
+  }
+  if (url.origin === API && url.pathname.startsWith('/api/')) {
+    if (PUBLIC_API.test(url.pathname)) e.respondWith(networkFirst(req));
     return; // everything else on the API (accounts, downloads, admin) goes straight to the network
   }
   if (url.origin !== self.location.origin) return;
