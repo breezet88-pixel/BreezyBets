@@ -231,8 +231,10 @@ var mkParse=function(mk){return{y:+mk.slice(0,4),m:+mk.slice(5,7)}};
 var addMonths=function(mk,n){var p=mkParse(mk);var t=p.y*12+(p.m-1)+n;return Math.floor(t/12)+'-'+pad(t%12+1)};
 var monthsBetween=function(a,b){var x=mkParse(a),y=mkParse(b);return (y.y-x.y)*12+(y.m-x.m)};
 var lastDay=function(mk){var p=mkParse(mk);return new Date(Date.UTC(p.y,p.m,0)).getUTCDate()};
-var period=function(mk){return{start:addMonths(mk,-1)+'-11',end:mk+'-10'}};
-var payMonthOf=function(s){return parse(s).d>=11?addMonths(mkOf(s),1):mkOf(s)};
+var periodEnd=function(mk){var c=(S().cutoffs||{})[mk];return c||mk+'-10'};
+var periodStart=function(mk){return addDays(periodEnd(addMonths(mk,-1)),1)};
+var period=function(mk){return{start:periodStart(mk),end:periodEnd(mk)}};
+var payMonthOf=function(s){var m=mkOf(s);return s<=periodEnd(m)?m:addMonths(m,1)};
 var r2=function(n){return Math.round((n+Number.EPSILON)*100)/100};
 var sum=function(a,f){return a.reduce(function(t,x){return t+(f?f(x):x)},0)};
 var uid=function(){return Math.random().toString(36).slice(2,8)+Date.now().toString(36).slice(-3)};
@@ -312,7 +314,9 @@ function defaultSettings(){return{
     {id:'p5',label:'Eating out',category:'Eating out',amount:''},
     {id:'p6',label:'Airtime and data',category:'Phone',amount:''}
   ],
-  extraHolidays:[]
+  extraHolidays:[],
+  cutoffs:{},
+  leave:[]
 }}
 var state={settings:defaultSettings(),periods:{},ledger:{}};
 var today=todayStr();
@@ -324,7 +328,8 @@ function applySettings(d){
   s.be.loan=Object.assign({monthly:0,balance:0,asOf:''},(d.be&&d.be.loan)||{});
   s.be.legacy=s.be.legacy||{};s.be.unpaidDays=s.be.unpaidDays||{};s.be.payslips=s.be.payslips||{};
   s.tax=Object.assign({vaSetAside:true},d.tax||{});
-  ['classes','timetable','recurring','presets','extraHolidays'].forEach(function(k){if(!Array.isArray(s[k]))s[k]=def[k]});
+  ['classes','timetable','recurring','presets','extraHolidays','leave'].forEach(function(k){if(!Array.isArray(s[k]))s[k]=def[k]});
+  if(!s.cutoffs||typeof s.cutoffs!=='object')s.cutoffs={};
   state.settings=s;
 }
 
@@ -342,9 +347,10 @@ function setStatus(){
   else if(store.slow){t="Can't reach saved data yet";c='err'}
   el.className='pill '+c;el.textContent=t;
 }
-function markDirty(p){dirty.add(p);setStatus();clearTimeout(flushTimer);flushTimer=setTimeout(flush,300)}
+var dataVer=0;
+function markDirty(p){dataVer++;dirty.add(p);setStatus();clearTimeout(flushTimer);flushTimer=setTimeout(flush,300)}
 function saveLocal(){try{localStorage.setItem('breeze-money',JSON.stringify(state))}catch(e){}}
-function loadLocal(){try{var j=JSON.parse(localStorage.getItem('breeze-money')||'null');if(j){applySettings(j.settings);state.periods=j.periods||{};state.ledger=j.ledger||{}}}catch(e){}store.loaded={s:true,p:true,l:true}}
+function loadLocal(){dataVer++;try{var j=JSON.parse(localStorage.getItem('breeze-money')||'null');if(j){applySettings(j.settings);state.periods=j.periods||{};state.ledger=j.ledger||{}}}catch(e){}store.loaded={s:true,p:true,l:true}}
 async function writeDoc(p){
   if(!store.db){saveLocal();return}
   var parts=p.split('/'),col=parts[0],id=parts[1],data;
@@ -375,19 +381,19 @@ async function initStore(){
   var onErr=function(){store.failed=true;setStatus()};
   db.doc('settings/main').onSnapshot(function(snap){
     if(!busy('settings/main')&&snap.exists)applySettings(clone(snap.data()));
-    done('s');
+    dataVer++;done('s');
   },onErr);
   db.collection('periods').onSnapshot(function(snap){
     var seen={};
     snap.docs.forEach(function(d){seen[d.id]=1;if(!busy('periods/'+d.id)){state.periods[d.id]=(clone(d.data()).sessions||[])}});
     Object.keys(state.periods).forEach(function(k){if(!seen[k]&&!busy('periods/'+k)&&!snap.metadata.fromCache)delete state.periods[k]});
-    done('p');
+    dataVer++;done('p');
   },onErr);
   db.collection('ledger').onSnapshot(function(snap){
     var seen={};
     snap.docs.forEach(function(d){seen[d.id]=1;if(!busy('ledger/'+d.id)){state.ledger[d.id]=(clone(d.data()).entries||[])}});
     Object.keys(state.ledger).forEach(function(k){if(!seen[k]&&!busy('ledger/'+k)&&!snap.metadata.fromCache)delete state.ledger[k]});
-    done('l');
+    dataVer++;done('l');
   },onErr);
 }
 
@@ -395,7 +401,14 @@ async function initStore(){
 var classById=function(id){return S().classes.filter(function(c){return c.id===id})[0]};
 function clsOf(s){var c=classById(s.classId);return c||{id:s.classId,name:s.label||'Class',venue:'',color:'#8a8a94',rate:s.rate,active:false}}
 var cmpSession=function(a,b){return a.date<b.date?-1:a.date>b.date?1:mins(a.start)-mins(b.start)};
-var sessionsFor=function(mk){return (state.periods[mk]||[]).slice().sort(cmpSession)};
+var idx={key:'',map:{}};
+function sessionIndex(){
+  var key=dataVer+'|'+JSON.stringify(S().cutoffs||{});
+  if(idx.key!==key){var m={};Object.keys(state.periods).forEach(function(k){state.periods[k].forEach(function(x){var pm=payMonthOf(x.date);(m[pm]=m[pm]||[]).push(x)})});idx={key:key,map:m}}
+  return idx.map;
+}
+var sessionsFor=function(mk){return (sessionIndex()[mk]||[]).slice().sort(cmpSession)};
+var leaveOn=function(ds){return (S().leave||[]).filter(function(l){return ds>=l.from&&ds<=l.to})[0]||null};
 var ledgerFor=function(mk){return state.ledger[mk]||[]};
 function addSession(s){var k=payMonthOf(s.date);(state.periods[k]=state.periods[k]||[]).push(s);markDirty('periods/'+k)}
 function findSession(id){for(var k in state.periods){var i=state.periods[k].findIndex(function(s){return s.id===id});if(i>=0)return{k:k,i:i,s:state.periods[k][i]}}return null}
@@ -453,7 +466,7 @@ var ui={
   view:'overview',month:mkOf(today),vaMonth:payMonthOf(today),moneyMonth:mkOf(today),beMonth:mkOf(today),beYear:+today.slice(0,4),
   venue:'all',fill:null,armed:null,
   va:null,money:null,slip:null,slipOpen:false,
-  nc:{name:'',venue:'',rate:230},ntt:{dow:1,classId:'',start:'06:00'},nrec:{label:'',category:'',amount:'',pct:'',from:'',until:''},npre:{label:'',category:'',amount:''},nhol:{date:'',name:''},
+  nc:{name:'',venue:'',rate:230},ntt:{dow:1,classId:'',start:'06:00'},nrec:{label:'',category:'',amount:'',pct:'',from:'',until:''},npre:{label:'',category:'',amount:''},nhol:{date:'',name:''},nleave:{from:'',to:'',label:''},ncut:{mk:'',date:''},
   voice:{open:false,text:'',partial:'',listening:false,busy:false,items:null,error:'',via:''}
 };
 var caps={dict:null,sample:null,dl:null};
@@ -527,7 +540,16 @@ function viewOverview(){
   var coming='<div class="card"><h2>Coming up</h2>'+up.map(function(u){return '<div class="mrow" style="grid-template-columns:minmax(0,1fr) auto auto"><div><b style="font-weight:500">'+esc(u.what)+'</b><div class="note">'+fmtDY(u.date)+'</div></div><span class="tnum">'+(u.est?'<span class="faint">about </span>':'')+R(u.amount)+'</span>'+payStatus(u.date)+'</div>'}).join('')+'</div>';
   var chart='<div class="card"><h2>Last six months</h2>'+chartSvg(mk)+'</div>';
   var hint=empty?'<div class="empty" style="margin-bottom:18px"><b>Nothing recorded for '+monthLabel(mk)+' yet</b>Add classes on the Virgin Active tab, or press Quick add and say what you taught.</div>':'';
-  return h1+hero+hint+'<div class="grid2"><div class="stack">'+wf+chart+'</div><div class="stack">'+coming+spend+'</div></div>';
+  return h1+hero+hint+'<div class="grid2"><div class="stack">'+wf+outlookCard(mk)+chart+'</div><div class="stack">'+coming+spend+'</div></div>';
+}
+function outlookCard(mk){
+  var rows='';
+  for(var i=0;i<7;i++){
+    var m=addMonths(mk,i),s=summary(m),per=period(m);
+    var lv=(S().leave||[]).some(function(l){return l.from<=per.end&&l.to>=per.start});
+    rows+='<tr'+(i===0?' class="cur"':'')+'><td>'+MON[mkParse(m).m-1]+' '+mkParse(m).y+(lv?' <span class="tag" style="color:var(--warn);border-color:#4d3b1c">Leave</span>':'')+'</td><td class="r">'+s.ses.length+'</td><td class="r">'+Rw(s.va)+'</td><td class="r">'+Rw(s.be.net)+'</td><td class="r">'+Rw(s.takeHome)+'</td><td class="r">'+Rw(s.left)+'</td></tr>';
+  }
+  return '<div class="card"><h2>Forecast <small>next 7 months, after tax and deductions</small></h2><div class="scroll"><table><tr><th>Paid in</th><th class="r">Classes</th><th class="r">Virgin Active</th><th class="r">B-Active</th><th class="r">Take-home</th><th class="r">Left to save</th></tr>'+rows+'</table></div><p class="note" style="margin-top:8px">Classes and income follow your weekly timetable, public holidays and leave. Left to save only knows the bills and spending logged so far.</p></div>';
 }
 function upcoming(){
   var items=[];
@@ -547,10 +569,12 @@ function viewVA(){
   var venues=[];S().classes.forEach(function(c){if(c.venue&&venues.indexOf(c.venue)<0)venues.push(c.venue)});
   var ses=all.filter(function(s){return ui.venue==='all'||clsOf(s).venue===ui.venue});
   var total=sum(all,function(s){return +s.rate||0}),earned=sum(all.filter(function(s){return s.date<=today}),function(s){return +s.rate||0});
-  var m=sum(all,function(s){return dur(s.start,s.end)});
+  var left=all.filter(function(s){return s.date>today}).length;
   var f=ui.va,act=S().classes.filter(function(c){return c.active||c.id===f.classId});
+  var lv=(S().leave||[]).filter(function(l){return l.from<=per.end&&l.to>=per.start});
+  var lvBanner=lv.length?'<div class="note" style="margin-bottom:14px"><span class="tag" style="color:var(--warn);border-color:#4d3b1c">On leave</span> '+lv.map(function(l){return fmtD(l.from)+' to '+fmtD(l.to)}).join(', ')+'. No classes are counted on these days.</div>':'';
   var head='<div class="head"><div><h1>Virgin Active</h1><p>Invoice '+fmtDY(per.start)+' to '+fmtDY(per.end)+' · paid '+fmtDY(vp.date)+paydayNote(vp)+'</p></div>'+stepper('va','Paid '+MON[mkParse(mk).m-1]+' '+mkParse(mk).y)+'</div>';
-  var stats='<div class="stats"><div class="stat"><b>'+all.length+'</b><span>Classes</span></div><div class="stat"><b>'+fmtH(m).replace(' min','m').replace(' h','h')+'</b><span>Time teaching</span></div><div class="stat"><b class="red">'+R(total)+'</b><span>This invoice</span></div><div class="stat"><b>'+R(earned)+'</b><span>Done so far</span></div></div>';
+  var stats='<div class="stats"><div class="stat"><b>'+all.length+'</b><span>Classes</span></div><div class="stat"><b>'+left+'</b><span>Still to teach</span></div><div class="stat"><b class="red">'+R(total)+'</b><span>This invoice</span></div><div class="stat"><b>'+R(earned)+'</b><span>Done so far</span></div></div>';
   var form='<div class="card"><h2>'+(f.id?'Edit class':'Add a class')+'<small>Rate fills in from the class</small></h2><form class="form va-form" data-form="va">'+
     '<div class="fld"><label for="va-date">Date</label><input id="va-date" type="date" data-b="va.date" value="'+esc(f.date)+'" required></div>'+
     '<div class="fld span2"><label for="va-class">Class</label><select id="va-class" data-b="va.classId">'+act.map(function(c){return '<option value="'+esc(c.id)+'"'+(c.id===f.classId?' selected':'')+'>'+esc(c.name)+'</option>'}).join('')+'</select></div>'+
@@ -564,7 +588,7 @@ function viewVA(){
   if(ui.fill){
     var fl=ui.fill;
     fillPanel='<div class="card"><h2>Fill from timetable</h2>'+(fl.add.length?'<p>Adds <b>'+fl.add.length+' classes</b> worth <b>'+R(sum(fl.add,function(x){return x.rate}))+'</b> between '+fmtD(fl.from)+' and '+fmtD(per.end)+'.</p>':'<p>Nothing to add for this period.</p>')+
-      '<p class="note" style="margin-top:6px">'+(fl.skipH.length?'Skips '+fl.skipH.length+' public holiday class'+(fl.skipH.length===1?'':'es')+' ('+fl.skipH.map(function(x){return fmtDs(x)}).filter(function(v,i,a){return a.indexOf(v)===i}).join(', ')+'). ':'')+(fl.dupes?fl.dupes+' already added. ':'')+'</p>'+
+      '<p class="note" style="margin-top:6px">'+(fl.skipH.length?'Skips '+fl.skipH.length+' public holiday class'+(fl.skipH.length===1?'':'es')+' ('+fl.skipH.map(function(x){return fmtDs(x)}).filter(function(v,i,a){return a.indexOf(v)===i}).join(', ')+'). ':'')+(fl.skipL?'Skips '+fl.skipL+' class'+(fl.skipL===1?'':'es')+' while you are on leave. ':'')+(fl.dupes?fl.dupes+' already added. ':'')+'</p>'+
       '<label class="note" style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" data-act="fill-past" '+(fl.past?'checked':'')+'> Include days before today</label>'+
       '<div class="chips" style="margin-top:12px"><button class="btn primary" data-act="fill-go"'+(fl.add.length?'':' disabled')+'>Add them</button><button class="btn" data-act="fill-close">Cancel</button></div></div>';
   }
@@ -581,13 +605,13 @@ function viewVA(){
       list+='<div class="row'+(s.note?' flag':'')+'"><div class="when">'+esc(s.start)+' to '+esc(s.end)+'</div><div class="what" data-flag="'+esc(s.note||'')+'">'+chip(c)+'</div><div class="amt">'+(+s.rate?R(s.rate):'<span class="warn">R0</span>')+'</div><div class="acts"><button class="btn small ghost" data-act="va-edit" data-id="'+s.id+'">Edit</button><button class="btn small '+(arm?'danger':'ghost')+'" data-act="va-del" data-id="'+s.id+'">'+(arm?'Sure?':'Delete')+'</button></div></div>';
     });
   }
-  var by={};all.forEach(function(s){var c=clsOf(s);var o=by[c.id]=by[c.id]||{c:c,n:0,m:0,t:0};o.n++;o.m+=dur(s.start,s.end);o.t+=+s.rate||0});
+  var by={};all.forEach(function(s){var c=clsOf(s);var o=by[c.id]=by[c.id]||{c:c,n:0,t:0};o.n++;o.t+=+s.rate||0});
   var byRows=Object.keys(by).map(function(k){return by[k]}).sort(function(a,b){return b.t-a.t});
-  var bytab='<div class="card"><h2>By class</h2>'+(byRows.length?'<div class="scroll"><table><tr><th>Class</th><th class="r">Classes</th><th class="r">Hours</th><th class="r">Total</th></tr>'+byRows.map(function(o){return '<tr><td>'+chip(o.c)+'</td><td class="r">'+o.n+'</td><td class="r">'+(o.m/60).toFixed(2).replace(/\.?0+$/,'')+'</td><td class="r">'+R(o.t)+'</td></tr>'}).join('')+'<tr><td><b>Total</b></td><td class="r"><b>'+all.length+'</b></td><td class="r"><b>'+(m/60).toFixed(2).replace(/\.?0+$/,'')+'</b></td><td class="r"><b>'+R(total)+'</b></td></tr></table></div>':'<p class="note">Totals appear once you add classes.</p>')+
+  var bytab='<div class="card"><h2>By class</h2>'+(byRows.length?'<div class="scroll"><table><tr><th>Class</th><th class="r">Classes</th><th class="r">Total</th></tr>'+byRows.map(function(o){return '<tr><td>'+chip(o.c)+'</td><td class="r">'+o.n+'</td><td class="r">'+R(o.t)+'</td></tr>'}).join('')+'<tr><td><b>Total</b></td><td class="r"><b>'+all.length+'</b></td><td class="r"><b>'+R(total)+'</b></td></tr></table></div>':'<p class="note">Totals appear once you add classes.</p>')+
     '<div class="chips" style="margin-top:14px"><button class="btn small" data-act="copy-invoice"'+(all.length?'':' disabled')+'>Copy invoice summary</button></div></div>';
   var vchips='<div class="chips" style="margin-bottom:12px"><button class="chip'+(ui.venue==='all'?' on':'')+'" data-act="venue" data-v="all">All venues</button>'+venues.map(function(v){return '<button class="chip'+(ui.venue===v?' on':'')+'" data-act="venue" data-v="'+esc(v)+'">'+esc(v)+'</button>'}).join('')+'</div>';
   var listCard='<div class="card"><h2>Classes this invoice <small>'+fmtDs(per.start)+' to '+fmtDs(per.end)+'</small></h2>'+vchips+list+'</div>';
-  return head+stats+'<div class="grid2"><div class="stack">'+form+listCard+'</div><div class="stack"><div class="card"><h2>Weekly timetable</h2><p class="note">Your repeating week. One tap adds every class for the invoice period, skipping public holidays.</p><div class="chips" style="margin-top:12px">'+fillBtn+'</div></div>'+fillPanel+bytab+'</div></div>';
+  return head+lvBanner+stats+'<div class="grid2"><div class="stack">'+form+listCard+'</div><div class="stack"><div class="card"><h2>Weekly timetable</h2><p class="note">Your repeating week. One tap adds every class for the invoice period, skipping public holidays and your leave.</p><div class="chips" style="margin-top:12px">'+fillBtn+'</div></div>'+fillPanel+bytab+'</div></div>';
 }
 
 /* ---------- be active */
@@ -704,9 +728,15 @@ function viewSetup(){
   var hol='<div class="card"><h2>Public holidays <small>South Africa, built in</small></h2><p class="note">Pay days move back to the working day before when they land on a weekend or one of these. Sunday holidays move to the Monday.</p><div class="chips" style="margin:10px 0">'+Object.keys(hl).sort().map(function(d){return '<span class="chip">'+fmtDs(d)+' · '+esc(hl[d])+'</span>'}).join('')+'</div>'+
     (st.extraHolidays.length?'<div class="chips" style="margin-bottom:10px">'+st.extraHolidays.map(function(x,i){return '<span class="chip">'+fmtDs(x.date)+' · '+esc(x.name||'Extra day')+' <button class="btn small ghost" style="min-height:22px;padding:0 6px;border:0" data-act="hol-del" data-i="'+i+'" aria-label="Remove">&times;</button></span>'}).join('')+'</div>':'')+
     '<form class="form" data-form="nhol"><div class="fld"><label for="nh-d">Extra day off (for example an election day)</label><input id="nh-d" type="date" data-b="nhol.date" value="'+esc(ui.nhol.date)+'" required></div><div class="fld"><label for="nh-n">Name</label><input id="nh-n" data-b="nhol.name" value="'+esc(ui.nhol.name)+'" placeholder="Election day"></div><div class="actions"><button class="btn" type="submit">Add day</button></div></form></div>';
+  var leaveCard='<div class="card"><h2>Leave <small>No classes counted</small></h2>'+(st.leave.length?'<div class="chips" style="margin-bottom:12px">'+st.leave.map(function(l,i){return '<span class="chip">'+fmtDs(l.from)+' to '+fmtDs(l.to)+' · '+esc(l.label||'Leave')+' <button class="btn small ghost" style="min-height:22px;padding:0 6px;border:0" data-act="leave-del" data-i="'+i+'" aria-label="Remove">&times;</button></span>'}).join('')+'</div>':'<p class="note" style="margin-bottom:12px">No leave added.</p>')+
+    '<form class="form" data-form="nleave"><div class="fld"><label for="nl-f">First day off</label><input id="nl-f" type="date" data-b="nleave.from" value="'+esc(ui.nleave.from)+'" required></div><div class="fld"><label for="nl-t">Last day off</label><input id="nl-t" type="date" data-b="nleave.to" value="'+esc(ui.nleave.to)+'" required></div><div class="fld"><label for="nl-n">Name</label><input id="nl-n" data-b="nleave.label" value="'+esc(ui.nleave.label)+'" placeholder="Leave"></div><div class="actions"><button class="btn" type="submit">Add leave</button></div></form>'+
+    '<p class="note" style="margin-top:10px">Classes already forecast on these days are removed, and timetable fills skip them. B-Active salary is not reduced. If some of the leave is unpaid at B-Active, enter the unpaid days on the B-Active tab.</p></div>';
+  var cuts=Object.keys(st.cutoffs||{}).sort();
+  var cutCard='<div class="card"><h2>Invoice cut-offs <small>Exceptions to the 10th</small></h2>'+(cuts.length?'<div class="chips" style="margin-bottom:12px">'+cuts.map(function(k){return '<span class="chip">Paid '+monthLabel(k)+': ends '+fmtDs(st.cutoffs[k])+', next starts '+fmtDs(addDays(st.cutoffs[k],1))+' <button class="btn small ghost" style="min-height:22px;padding:0 6px;border:0" data-act="cut-del" data-k="'+k+'" aria-label="Remove">&times;</button></span>'}).join('')+'</div>':'<p class="note" style="margin-bottom:12px">Every invoice runs from the 11th to the 10th.</p>')+
+    '<form class="form" data-form="ncut"><div class="fld"><label for="nc-m">Paid in month</label><input id="nc-m" type="month" data-b="ncut.mk" value="'+esc(ui.ncut.mk)+'" required></div><div class="fld"><label for="nc-d">Invoice ends on</label><input id="nc-d" type="date" data-b="ncut.date" value="'+esc(ui.ncut.date)+'" required></div><div class="actions"><button class="btn" type="submit">Set cut-off</button></div></form><p class="note" style="margin-top:10px">The next invoice then starts the day after.</p></div>';
   var nS=sum(Object.keys(state.periods),function(k){return state.periods[k].length}),nE=sum(Object.keys(state.ledger),function(k){return state.ledger[k].length});
   var data='<div class="card"><h2>Your data <small>'+nS+' classes · '+nE+' entries</small></h2><p class="note">'+(store.mode==='cloud'?'Saved to your account, so it is the same on your phone and laptop.':'Saved in this browser only.')+'</p><div class="chips" style="margin-top:12px"><button class="btn" data-act="export-csv">Download classes and money (CSV)</button><button class="btn" data-act="export-json">Download full backup (JSON)</button></div></div>';
-  return head+'<div class="grid2"><div class="stack">'+cls+tt+rec+pre+'</div><div class="stack">'+be+hol+data+'</div></div>';
+  return head+'<div class="grid2"><div class="stack">'+cls+tt+rec+pre+'</div><div class="stack">'+be+leaveCard+cutCard+hol+data+'</div></div>';
 }
 
 /* ---------- voice / note sheet */
@@ -796,6 +826,10 @@ document.addEventListener('submit',function(e){
   else if(f==='ntt'){var t=ui.ntt;var cid=t.classId||(S().classes.filter(function(c){return c.active})[0]||{}).id;if(!cid)return;S().timetable.push({id:uid(),dow:+t.dow,classId:cid,start:t.start});markDirty('settings/main');toast('Added to your week');render()}
   else if(f==='nrec'){var r=ui.nrec;S().recurring.push({id:uid(),label:r.label.trim(),category:r.category.trim()||'Other',amount:+r.amount||0,from:r.from||mkOf(today),until:''});ui.nrec={label:'',category:'',amount:'',pct:'',from:'',until:''};markDirty('settings/main');toast('Monthly bill added');render()}
   else if(f==='npre'){var p=ui.npre;S().presets.push({id:uid(),label:p.label.trim(),category:p.category.trim()||p.label.trim(),amount:p.amount===''?'':+p.amount});ui.npre={label:'',category:'',amount:''};markDirty('settings/main');toast('Option added');render()}
+  else if(f==='nleave'){var l=ui.nleave;if(l.to<l.from){toast('The last day must be on or after the first day');return}
+    var removed=0;(state.periods&&Object.keys(state.periods)).forEach(function(k){state.periods[k].slice().forEach(function(x){if(x.date>today&&x.date>=l.from&&x.date<=l.to){removeSession(x.id);removed++}})});
+    S().leave.push({id:uid(),from:l.from,to:l.to,label:(l.label||'').trim()||'Leave'});ui.nleave={from:'',to:'',label:''};markDirty('settings/main');toast('Leave added'+(removed?'. Removed '+removed+' forecast classes':''));render()}
+  else if(f==='ncut'){var c=ui.ncut;if(!(mkOf(c.date)===c.mk||mkOf(c.date)===addMonths(c.mk,-1))){toast('The cut-off must fall in that month or the one before');return}S().cutoffs[c.mk]=c.date;ui.ncut={mk:'',date:''};markDirty('settings/main');toast('Cut-off set');render()}
   else if(f==='nhol'){var h=ui.nhol;S().extraHolidays.push({date:h.date,name:h.name.trim()});ui.nhol={date:'',name:''};markDirty('settings/main');toast('Day added');render()}
 });
 function submitVa(){
@@ -804,6 +838,7 @@ function submitVa(){
   if(mins(f.end)<=mins(f.start)){f.error='The end time must be after the start time.';return render()}
   var c=classById(f.classId);
   var s={id:f.id||uid(),date:f.date,classId:f.classId,label:c?c.name:'',start:f.start,end:f.end,rate:+f.rate||0};
+  if(leaveOn(s.date))s.note='You are on leave this day.';
   if(f.id){var old=findSession(f.id);if(old&&old.s.note&&old.s.date===s.date)s.note=old.s.note;removeSession(f.id)}
   addSession(s);
   var pm=payMonthOf(s.date);
@@ -836,19 +871,20 @@ function buildFill(past){
   var from=per.start;
   if(past==null)past=per.end<today;
   if(!past&&today>from&&today<=per.end)from=today;
-  var have={};(state.periods[mk]||[]).forEach(function(s){have[s.date+'|'+s.classId+'|'+s.start]=1});
-  var add=[],skipH=[],dupes=0;
+  var have={};sessionsFor(mk).forEach(function(s){have[s.date+'|'+s.classId+'|'+s.start]=1});
+  var add=[],skipH=[],dupes=0,skipL=0;
   for(var d=from;d<=per.end;d=addDays(d,1)){
     S().timetable.forEach(function(t){
       if(t.dow!==dow(d))return;
       var c=classById(t.classId);if(!c)return;
+      if(leaveOn(d)){skipL++;return}
       if(holidayName(d)){skipH.push(d);return}
       var key=d+'|'+t.classId+'|'+t.start;
       if(have[key]){dupes++;return}
       add.push({id:uid(),date:d,classId:t.classId,label:c.name,start:t.start,end:t.end||tstr(mins(t.start)+45),rate:c.rate});
     });
   }
-  return{add:add,skipH:skipH,dupes:dupes,from:from,past:past};
+  return{add:add,skipH:skipH,skipL:skipL,dupes:dupes,from:from,past:past};
 }
 function csvEsc(v){v=String(v==null?'':v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
 function exportCsv(){
@@ -910,6 +946,8 @@ document.addEventListener('click',function(e){
     case 'tt-del':S().timetable=S().timetable.filter(function(x){return x.id!==id});markDirty('settings/main');render();break;
     case 'rec-del':if(arm('r:'+id)){S().recurring=S().recurring.filter(function(x){return x.id!==id});markDirty('settings/main');render()}break;
     case 'pre-del':if(arm('p:'+id)){S().presets=S().presets.filter(function(x){return x.id!==id});markDirty('settings/main');render()}break;
+    case 'leave-del':S().leave.splice(+t.getAttribute('data-i'),1);markDirty('settings/main');render();break;
+    case 'cut-del':delete S().cutoffs[t.getAttribute('data-k')];markDirty('settings/main');render();break;
     case 'hol-del':S().extraHolidays.splice(+t.getAttribute('data-i'),1);markDirty('settings/main');render();break;
     case 'export-csv':save('breeze-money.csv',exportCsv());break;
     case 'export-json':save('breeze-money-backup.json',JSON.stringify(state,null,1));break;
