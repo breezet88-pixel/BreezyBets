@@ -466,7 +466,7 @@ var ui={
   view:'overview',month:mkOf(today),vaMonth:payMonthOf(today),moneyMonth:mkOf(today),beMonth:mkOf(today),beYear:+today.slice(0,4),
   venue:'all',fill:null,armed:null,
   va:null,money:null,slip:null,slipOpen:false,
-  nc:{name:'',venue:'',rate:230},ntt:{dow:1,classId:'',start:'06:00'},nrec:{label:'',category:'',amount:'',pct:'',from:'',until:''},npre:{label:'',category:'',amount:''},nhol:{date:'',name:''},nleave:{from:'',to:'',label:''},ncut:{mk:'',date:''},
+  nc:{name:'',venue:'',rate:230},ntt:{dow:1,classId:'',start:'06:00'},nrec:{label:'',category:'',amount:'',pct:'',from:'',until:''},npre:{label:'',category:'',amount:''},nhol:{date:'',name:''},nleave:{from:'',to:'',label:''},fcYear:+today.slice(0,4),ncut:{mk:'',date:''},
   voice:{open:false,text:'',partial:'',listening:false,busy:false,items:null,error:'',via:''}
 };
 var caps={dict:null,sample:null,dl:null};
@@ -540,16 +540,18 @@ function viewOverview(){
   var coming='<div class="card"><h2>Coming up</h2>'+up.map(function(u){return '<div class="mrow" style="grid-template-columns:minmax(0,1fr) auto auto"><div><b style="font-weight:500">'+esc(u.what)+'</b><div class="note">'+fmtDY(u.date)+'</div></div><span class="tnum">'+(u.est?'<span class="faint">about </span>':'')+R(u.amount)+'</span>'+payStatus(u.date)+'</div>'}).join('')+'</div>';
   var chart='<div class="card"><h2>Last six months</h2>'+chartSvg(mk)+'</div>';
   var hint=empty?'<div class="empty" style="margin-bottom:18px"><b>Nothing recorded for '+monthLabel(mk)+' yet</b>Add classes on the Virgin Active tab, or press Quick add and say what you taught.</div>':'';
-  return h1+hero+hint+'<div class="grid2"><div class="stack">'+wf+outlookCard(mk)+chart+'</div><div class="stack">'+coming+spend+'</div></div>';
+  return h1+hero+hint+'<div class="grid2"><div class="stack">'+wf+chart+'</div><div class="stack">'+coming+spend+'</div></div>'+yearCard();
 }
-function outlookCard(mk){
-  var rows='';
-  for(var i=0;i<7;i++){
-    var m=addMonths(mk,i),s=summary(m),per=period(m);
+function yearCard(){
+  var yr=ui.fcYear,rows='',t={n:0,va:0,be:0,th:0,left:0,spend:0};
+  for(var i=1;i<=12;i++){
+    var m=yr+'-'+pad(i),s=summary(m),per=period(m);
     var lv=(S().leave||[]).some(function(l){return l.from<=per.end&&l.to>=per.start});
-    rows+='<tr'+(i===0?' class="cur"':'')+'><td>'+MON[mkParse(m).m-1]+' '+mkParse(m).y+(lv?' <span class="tag" style="color:var(--warn);border-color:#4d3b1c">Leave</span>':'')+'</td><td class="r">'+s.ses.length+'</td><td class="r">'+Rw(s.va)+'</td><td class="r">'+Rw(s.be.net)+'</td><td class="r">'+Rw(s.takeHome)+'</td><td class="r">'+Rw(s.left)+'</td></tr>';
+    t.n+=s.ses.length;t.va+=s.va;t.be+=s.be.net;t.th+=s.takeHome;t.left+=s.left;
+    rows+='<tr'+(m===mkOf(today)?' class="cur"':'')+'><td><a href="#overview" data-act="fc-pick" data-m="'+m+'" style="text-decoration:none">'+MONL[i-1]+'</a>'+(lv?' <span class="tag" style="color:var(--warn);border-color:#4d3b1c">Leave</span>':'')+'</td><td class="faint" style="white-space:nowrap">'+fmtDs(per.start)+' to '+fmtDs(per.end)+'</td><td class="r">'+s.ses.length+'</td><td class="r">'+Rw(s.va)+'</td><td class="r">'+(s.be.has?Rw(s.be.net):'<span class="faint">none</span>')+'</td><td class="r">'+Rw(s.takeHome)+'</td><td class="r">'+Rw(s.left)+'</td></tr>';
   }
-  return '<div class="card"><h2>Forecast <small>next 7 months, after tax and deductions</small></h2><div class="scroll"><table><tr><th>Paid in</th><th class="r">Classes</th><th class="r">Virgin Active</th><th class="r">B-Active</th><th class="r">Take-home</th><th class="r">Left to save</th></tr>'+rows+'</table></div><p class="note" style="margin-top:8px">Classes and income follow your weekly timetable, public holidays and leave. Left to save only knows the bills and spending logged so far.</p></div>';
+  rows+='<tr><td><b>Year</b></td><td></td><td class="r"><b>'+t.n+'</b></td><td class="r"><b>'+Rw(t.va)+'</b></td><td class="r"><b>'+Rw(t.be)+'</b></td><td class="r"><b>'+Rw(t.th)+'</b></td><td class="r"><b>'+Rw(t.left)+'</b></td></tr>';
+  return '<div class="card"><h2>Every month in '+yr+' <span style="display:flex;gap:6px"><button class="btn icon small" data-act="fc-year" data-dir="-1" aria-label="Previous year">&#8249;</button><button class="btn icon small" data-act="fc-year" data-dir="1" aria-label="Next year">&#8250;</button></span></h2><div class="scroll"><table><tr><th>Paid in</th><th>Virgin Active invoice</th><th class="r">Classes</th><th class="r">Virgin Active</th><th class="r">B-Active</th><th class="r">Take-home</th><th class="r">Left to save</th></tr>'+rows+'</table></div><p class="note" style="margin-top:8px">Take-home is after PAYE, UIF, the loan and tax set-aside. Future months follow your weekly timetable, public holidays and leave. Left to save only knows the bills and spending logged so far. Tap a month to open it.</p></div>';
 }
 function upcoming(){
   var items=[];
@@ -924,6 +926,8 @@ document.addEventListener('click',function(e){
       else if(sc==='money'){ui.moneyMonth=d===0?mkOf(today):addMonths(ui.moneyMonth,d);if(!ui.money.id)resetMoney(ui.money.kind)}
       else if(sc==='be'){ui.beMonth=d===0?mkOf(today):addMonths(ui.beMonth,d);ui.beYear=mkParse(ui.beMonth).y;ui.slipOpen=false}
       render();break}
+    case 'fc-year':ui.fcYear+=+t.getAttribute('data-dir');render();break;
+    case 'fc-pick':e.preventDefault();ui.month=t.getAttribute('data-m');render();window.scrollTo({top:0,behavior:'smooth'});break;
     case 'be-year':ui.beYear+=+t.getAttribute('data-dir');render();break;
     case 'be-pick':e.preventDefault();ui.beMonth=t.getAttribute('data-m');ui.slipOpen=false;render();break;
     case 'venue':ui.venue=t.getAttribute('data-v');render();break;
