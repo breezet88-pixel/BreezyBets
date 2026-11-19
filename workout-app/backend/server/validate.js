@@ -74,3 +74,34 @@ export function cleanWorkout(body, uploadRoot) {
     }),
   };
 }
+
+// ---- donations: the app never handles money; it only links to your payment page ----
+function httpsUrl(v, label, placeholder) {
+  const raw = text(v, 500, label);
+  if (!raw) return '';
+  let u;
+  try { u = new URL(placeholder ? raw.split('{amount}').join('50') : raw); } catch { throw new HttpError(400, 'invalid', `${label} is not a valid web address.`); }
+  if (u.protocol !== 'https:') throw new HttpError(400, 'invalid', `${label} must start with https://`);
+  if (u.username || u.password) throw new HttpError(400, 'invalid', `${label} must not contain a username or password.`);
+  return raw;
+}
+
+export const DEFAULT_AMOUNTS = [20, 50, 100, 200];
+
+export function cleanDonate(body) {
+  if (!body || typeof body !== 'object') throw new HttpError(400, 'invalid', 'Missing settings.');
+  const url = httpsUrl(body.url, 'Donation link');
+  const amount_url = httpsUrl(body.amount_url, 'Amount link', true);
+  if (amount_url && !amount_url.includes('{amount}')) throw new HttpError(400, 'invalid', 'The amount link must contain {amount} where the rand amount goes.');
+  const message = text(body.message, 400, 'Message');
+  let amounts = DEFAULT_AMOUNTS;
+  if (body.amounts !== undefined) {
+    if (!Array.isArray(body.amounts) || body.amounts.length > 6) throw new HttpError(400, 'invalid', 'Give up to 6 suggested amounts.');
+    amounts = [...new Set(body.amounts.map((n) => {
+      const v = Number(n);
+      if (!Number.isInteger(v) || v < 1 || v > 100000) throw new HttpError(400, 'invalid', 'Suggested amounts must be whole rand from 1 to 100000.');
+      return v;
+    }))].sort((a, b) => a - b);
+  }
+  return { url, amount_url, message, amounts };
+}

@@ -19,7 +19,7 @@ import {
 } from './auth.js';
 import { createMailer } from './mailer.js';
 import {
-  HttpError, IMAGE_NAME, text, normEmail, validEmail, validDay, addDays, cleanWorkout,
+  HttpError, IMAGE_NAME, text, normEmail, validEmail, validDay, addDays, cleanWorkout, cleanDonate, DEFAULT_AMOUNTS,
 } from './validate.js';
 import { buildWorkoutHtml, slug } from './download.js';
 
@@ -212,6 +212,15 @@ export function createApp(opts = {}) {
     }
   }
 
+  // ---- donations (optional, voluntary; nothing in the app depends on them) ----
+  function donateConfig() {
+    const get = (k) => db.prepare('SELECT value FROM settings WHERE key = ?').get(k)?.value;
+    let amounts = DEFAULT_AMOUNTS;
+    try { const a = JSON.parse(get('donate_amounts') || 'null'); if (Array.isArray(a)) amounts = a; } catch { /* keep default */ }
+    const url = get('donate_url') || '';
+    return { enabled: !!url, url, amount_url: get('donate_amount_url') || '', message: get('donate_message') || '', amounts };
+  }
+
   function wodRow(day) {
     return db.prepare('SELECT w.* FROM wod_schedule s JOIN workouts w ON w.id = s.workout_id WHERE s.day = ? AND w.published = 1').get(day);
   }
@@ -244,6 +253,7 @@ export function createApp(opts = {}) {
       const youRated = viewer ? !!db.prepare('SELECT 1 FROM feedback WHERE workout_id = ? AND user_id = ? AND rating IS NOT NULL').get(id, viewer.id) : false;
       return json(res, 200, { feedback: rows.map(feedbackOut), you_rated: youRated, ...ratingOf(id) });
     }
+    if (m === 'GET' && p === '/api/donate') return json(res, 200, donateConfig(), { 'Cache-Control': 'no-cache' });
     if (m === 'GET' && p === '/api/wod') {
       const day = today();
       const row = wodRow(day);
@@ -429,6 +439,18 @@ export function createApp(opts = {}) {
       const name = `${crypto.randomBytes(16).toString('hex')}.${kind[0]}`;
       fs.writeFileSync(path.join(uploadRoot, name), buf);
       return json(res, 201, { file: name });
+    }
+
+    // donation link + message
+    if (m === 'GET' && p === '/api/admin/donate') return json(res, 200, donateConfig());
+    if (m === 'PUT' && p === '/api/admin/donate') {
+      const d = cleanDonate(await readJson(req));
+      const put = db.prepare('INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value = excluded.value');
+      inTransaction(db, () => {
+        put.run('donate_url', d.url); put.run('donate_amount_url', d.amount_url);
+        put.run('donate_message', d.message); put.run('donate_amounts', JSON.stringify(d.amounts));
+      });
+      return json(res, 200, donateConfig());
     }
 
     // workout of the day schedule

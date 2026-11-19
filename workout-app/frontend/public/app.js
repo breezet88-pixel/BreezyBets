@@ -11,6 +11,7 @@ const SAVED_KEY = 'fl.wod';
 const IMG_CACHE = 'fl-saved-v1';
 
 let me = null; // signed-in user, or null
+let donate = null; // coach's donation settings, or null
 let flash = ''; // one-time message shown on the next sign-in page
 let verificationRequired = false; // does the server want customers to confirm their email first?
 
@@ -148,7 +149,8 @@ async function todayView() {
     w.description ? h('p', {}, w.description) : null,
     offline ? null : h('a', { class: 'btn ghost', href: `#/w/${w.id}` }, 'See all exercises & reviews'),
     offline ? exerciseList(w) : null,
-    wodActions(day, w));
+    wodActions(day, w),
+    supportCard());
 }
 
 function exerciseList(w) {
@@ -162,6 +164,34 @@ function exerciseList(w) {
       e.equipment ? h('p', {}, h('b', {}, 'Equipment: '), e.equipment) : null,
       e.cues ? h('p', {}, e.cues) : null);
   }));
+}
+
+// ---------- support (optional donations: the payment happens on the provider's own page) ----------
+function supportCard() {
+  if (!donate?.enabled) return null;
+  return h('div', { class: 'support-card' },
+    h('p', {}, 'FitLibrary is free. If it helps you, you can chip in. It is completely optional.'),
+    h('a', { href: '#/support' }, '♥ Support the coach'));
+}
+
+function supportView() {
+  setTab('');
+  setBanner('');
+  if (!donate?.enabled) {
+    app.replaceChildren(h('h1', {}, 'FitLibrary is free'), h('p', {}, 'Everything here is free to use. Thank you for training with us.'), h('a', { class: 'btn ghost', href: '#/' }, 'Back to today’s workout'));
+    return;
+  }
+  const out = { target: '_blank', rel: 'noopener noreferrer' };
+  const host = new URL(donate.url).hostname;
+  const presets = donate.amount_url ? donate.amounts.map((n) => h('a', { class: 'btn', href: donate.amount_url.split('{amount}').join(String(n)), ...out }, `R${n}`)) : [];
+  app.replaceChildren(
+    h('h1', {}, 'Support the coach'),
+    h('p', {}, h('strong', {}, 'FitLibrary is free to use. ')), 
+    donate.message ? h('p', {}, donate.message) : h('p', {}, 'If these workouts help you, you can say thanks with a donation of any size. It is completely optional and does not unlock anything.'),
+    presets.length ? h('div', { class: 'amounts', role: 'group', 'aria-label': 'Choose an amount' }, presets) : null,
+    h('a', { class: presets.length ? 'btn ghost' : 'btn', href: donate.url, ...out }, presets.length ? 'Choose another amount' : 'Donate'),
+    h('p', { class: 'muted note' }, `You will pay on the secure ${host} page, not here. FitLibrary never sees your card or bank details. Donations are voluntary gifts and are not refundable through this app.`),
+    h('a', { class: 'back', href: '#/' }, '← Back'));
 }
 
 async function listView() {
@@ -368,6 +398,7 @@ async function route() {
     if ((m = hashPath.match(/^\/w\/(\d+)$/))) await detailView(Number(m[1]));
     else if (hashPath === '/workouts') await listView();
     else if (hashPath === '/account') accountView(query);
+    else if (hashPath === '/support') supportView();
     else if (hashPath === '/forgot') forgotView();
     else if (hashPath === '/reset') resetView(query);
     else if (hashPath === '/verify') await verifyView(query);
@@ -385,6 +416,8 @@ async function init() {
     catch (e) { if (e.status === 401) store.clear(); }
   }
   paintAccountTab();
+  donate = await api('/api/donate').catch(() => null);
+  document.getElementById('support-link').hidden = !donate?.enabled;
   addEventListener('hashchange', route);
   route();
 }

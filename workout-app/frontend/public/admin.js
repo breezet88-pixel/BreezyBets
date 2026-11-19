@@ -235,12 +235,41 @@ async function customersView() {
         h('button', { class: 'btn danger small', onclick: () => { if (confirm(`Delete ${u.name} and all their reviews?`)) act(() => api(`/api/admin/users/${u.id}`, { method: 'DELETE' }))(); } }, 'Delete'))))));
 }
 
+// ---------- donations ----------
+async function donationsView() {
+  const d = await api('/api/admin/donate');
+  const status = h('p', { role: 'status', class: 'muted' });
+  const url = h('input', { type: 'url', value: d.url, placeholder: 'https://… (your payment link)', maxlength: 500 });
+  const amountUrl = h('input', { type: 'url', value: d.amount_url, placeholder: 'https://…?amount={amount}  (optional)', maxlength: 500 });
+  const amounts = h('input', { type: 'text', value: d.amounts.join(', '), placeholder: '20, 50, 100, 200', inputmode: 'numeric' });
+  const message = h('textarea', { maxlength: 400, value: d.message, placeholder: 'FitLibrary is free. If it helps you, chip in so I can keep adding workouts.' });
+  app.replaceChildren(
+    h('h1', {}, 'Donations'),
+    h('p', {}, 'FitLibrary is free for everyone. Donations are optional and never unlock anything. Create a payment or donation link with your payment provider (money goes straight to your bank account), then paste it here. Members pay on the provider’s own page, so this app never touches their card or bank details.'),
+    h('form', { class: 'panel', onsubmit: async (e) => {
+      e.preventDefault();
+      const list = amounts.value.split(/[\s,]+/).filter(Boolean).map(Number);
+      try {
+        const r = await api('/api/admin/donate', { method: 'PUT', body: { url: url.value, amount_url: amountUrl.value, message: message.value, amounts: list } });
+        say(status, r.enabled ? 'Saved. The “Support the coach” link is now showing for members.' : 'Saved. With no link, donations are switched off.');
+      } catch (err) { say(status, err.message, true); }
+    } },
+    field('Donation link (the donor chooses the amount on that page)', url),
+    field('Link with an amount (optional): write {amount} where the rand amount goes', amountUrl),
+    field('Suggested amounts in rand (only used with the link above)', amounts),
+    field('Message to members (optional)', message),
+    h('div', { class: 'toolrow' }, h('button', { class: 'btn', type: 'submit' }, 'Save'),
+      d.url ? h('a', { class: 'btn ghost', href: d.url, target: '_blank', rel: 'noopener noreferrer' }, 'Test my link') : null),
+    status),
+    h('p', { class: 'muted' }, 'Leave the donation link empty to switch donations off.'));
+}
+
 // ---------- routing ----------
 async function route() {
   if (!store.get()) return loginView();
   tabs.hidden = false;
   const path = (location.hash || '#/workouts').slice(1);
-  const tab = path.startsWith('/wod') ? 'wod' : path.startsWith('/feedback') ? 'feedback' : path.startsWith('/customers') ? 'customers' : 'workouts';
+  const tab = path.startsWith('/wod') ? 'wod' : path.startsWith('/feedback') ? 'feedback' : path.startsWith('/customers') ? 'customers' : path.startsWith('/donations') ? 'donations' : 'workouts';
   tabs.querySelectorAll('[data-tab]').forEach((a) => a.classList.toggle('on', a.dataset.tab === tab));
   const blank = { title: '', description: '', category: '', level: '', duration_min: '', published: false, exercises: [] };
   let m;
@@ -250,6 +279,7 @@ async function route() {
     else if (tab === 'wod') await wodView();
     else if (tab === 'feedback') await feedbackView();
     else if (tab === 'customers') await customersView();
+    else if (tab === 'donations') await donationsView();
     else await workoutsView();
   } catch (e) {
     if (e.status === 401 || e.status === 403) { store.clear(); return loginView(); }

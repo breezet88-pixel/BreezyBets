@@ -20,6 +20,11 @@ CREATE TABLE IF NOT EXISTS email_tokens (
   kind TEXT NOT NULL CHECK (kind IN ('verify','reset')),
   expires_at INTEGER NOT NULL
 );
+-- Coach-editable site settings (the donation link and message live here).
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS sessions (
   token_hash TEXT PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

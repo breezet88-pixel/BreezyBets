@@ -1,6 +1,6 @@
 # FitLibrary
 
-A workout app with a **separate back end and front end**.
+A **free** workout app with a **separate back end and front end**. Nothing is paywalled; members can optionally donate (see [docs/donations.md](docs/donations.md)).
 
 | Who | Can |
 |---|---|
@@ -55,6 +55,7 @@ Sign-in uses a bearer token (no cookies), so the two parts can live on different
 Static files in `public/`. It finds the API from `API_URL` (used by `npm start`) or, on a static host, from `public/config.js`. `public/_headers` has a ready security-header template for Netlify / Cloudflare Pages.
 
 - **Customers** install it like an app: Android/Chrome/Edge/desktop via the *Install app* button, iPhone/iPad via Safari → Share → Add to Home Screen. Today's workout can be saved for offline use or downloaded as one self-contained file (pictures included, prints to PDF).
+- **Donations** are optional: you paste a payment link from your own provider on the coach page (Donations tab). Donors pay on that provider's page, so the app never touches money.
 - **You** use `/admin`: Workouts (with a **✨ Create image prompt** button on every exercise, see [docs/image-prompts.md](docs/image-prompts.md)), Workout of the day (schedule by date), Reviews (delete any), Customers (block / delete).
 
 ## Hosting

@@ -75,7 +75,7 @@ test('admin: only you can edit. Anonymous and customers are refused everywhere',
     ['GET', '/api/admin/workouts'], ['POST', '/api/admin/workouts', { title: 'x' }], ['PUT', '/api/admin/workouts/1', { title: 'x' }],
     ['DELETE', '/api/admin/workouts/1'], ['POST', '/api/admin/upload', PNG], ['GET', '/api/admin/wod'], ['PUT', '/api/admin/wod/2026-11-20', { workout_id: 1 }],
     ['DELETE', '/api/admin/wod/2026-11-20'], ['GET', '/api/admin/feedback'], ['DELETE', '/api/admin/feedback/1'],
-    ['GET', '/api/admin/users'], ['PUT', '/api/admin/users/2', { blocked: true }], ['DELETE', '/api/admin/users/2'],
+    ['GET', '/api/admin/donate'], ['PUT', '/api/admin/donate', { url: 'https://example.com/pay' }], ['GET', '/api/admin/users'], ['PUT', '/api/admin/users/2', { blocked: true }], ['DELETE', '/api/admin/users/2'],
   ];
   for (const [m, u, b] of adminCalls) {
     assert.equal((await call(m, u, b)).status, 401, `anonymous ${m} ${u}`);
@@ -360,4 +360,51 @@ test('forgot and reset password', async () => {
     assert.equal((await call('POST', '/api/auth/reset', { token: tokenIn(verifyMail), password: 'new-password-1' })).status, 400);
     void reg2;
   });
+});
+
+// ---- donations ----
+test('donations: free app, optional link that only the coach can set', async () => {
+  const off = (await call('GET', '/api/donate')).body;
+  assert.equal(off.enabled, false);
+  assert.equal(off.url, '');
+
+  assert.equal((await call('PUT', '/api/admin/donate', { url: 'https://pay.example.com/me' })).status, 401);
+  const donor = await register('Donor', 'donor@example.com');
+  assert.equal((await call('PUT', '/api/admin/donate', { url: 'https://pay.example.com/me' }, donor.token)).status, 403);
+
+  const bad = [
+    { url: 'http://pay.example.com/me' },                       // not https
+    { url: 'javascript:alert(1)' },                              // not a web address
+    { url: 'https://user:pw@pay.example.com/me' },               // credentials in the link
+    { url: 'not a url' },
+    { url: 'https://pay.example.com/me', amount_url: 'https://pay.example.com/me?amount=50' }, // no {amount}
+    { url: 'https://pay.example.com/me', amount_url: 'http://pay.example.com/me?amount={amount}' },
+    { url: 'https://pay.example.com/me', amounts: [0] },
+    { url: 'https://pay.example.com/me', amounts: [1.5] },
+    { url: 'https://pay.example.com/me', amounts: [1, 2, 3, 4, 5, 6, 7] },
+    { url: 'https://pay.example.com/me', message: 'x'.repeat(401) },
+  ];
+  for (const b of bad) assert.equal((await call('PUT', '/api/admin/donate', b, admin)).status, 400, JSON.stringify(b));
+
+  const ok = await call('PUT', '/api/admin/donate', {
+    url: 'https://pay.example.com/me', amount_url: 'https://pay.example.com/me?amount={amount}',
+    message: 'Free for everyone. Chip in if you like it.', amounts: [100, 20, 50, 50],
+  }, admin);
+  assert.equal(ok.status, 200);
+  const pub = (await call('GET', '/api/donate')).body;
+  assert.equal(pub.enabled, true);
+  assert.deepEqual(pub.amounts, [20, 50, 100]);
+  assert.equal(pub.amount_url, 'https://pay.example.com/me?amount={amount}');
+
+  // clearing the link switches donations off again
+  await call('PUT', '/api/admin/donate', { url: '' }, admin);
+  assert.equal((await call('GET', '/api/donate')).body.enabled, false);
+});
+
+test('nothing is paywalled: a brand-new customer can use every customer feature without paying', async () => {
+  const c = await register('Free', 'free@example.com');
+  const wid = (await call('POST', '/api/admin/workouts', { title: 'Free One', published: true, exercises: [{ name: 'Walk' }] }, admin)).body.workout.id;
+  await call('PUT', '/api/admin/wod/2026-11-20', { workout_id: wid }, admin);
+  assert.equal((await call('POST', `/api/workouts/${wid}/feedback`, { rating: 5 }, c.token)).status, 201);
+  assert.equal((await call('GET', '/api/wod/download', undefined, c.token)).status, 200);
 });

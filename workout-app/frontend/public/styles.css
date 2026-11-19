@@ -71,3 +71,9 @@ label{display:block;font-weight:600;font-size:.9rem;margin:0 0 4px}
 .f{margin-bottom:12px}
 select{font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%;min-height:44px}
 .list-item p{margin:4px 0 0;overflow-wrap:anywhere}
+/* donations */
+.foot{max-width:960px;margin:0 auto;padding:20px 16px 28px;color:var(--muted);font-size:.9rem;text-align:center}
+.support-card{margin:18px 0;background:var(--soft);border-radius:14px;padding:12px 14px}
+.support-card p{margin:0 0 6px}
+.amounts{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
+a.btn{display:inline-block;text-decoration:none;text-align:center;line-height:1.4}
