@@ -32,18 +32,22 @@ async function register(name, email, password = 'longenough1') {
   return r.body;
 }
 
+const outbox = [];
+const mailer = { real: false, async send(m) { outbox.push(m); } };
+const tokenIn = (mail) => /token=([A-Za-z0-9_-]+)/.exec(mail.text)[1];
+
 let admin, ann, ben, workoutId, imageFile;
 
 before(async () => {
   uploadDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fl-test-'));
   app = createApp({
-    dbPath: ':memory:', uploadDir, corsOrigins: [WEB], adminEmail: 'Coach@Example.com', adminPassword: 'coach-password-1',
+    dbPath: ':memory:', uploadDir, corsOrigins: [WEB], adminUsername: 'TestCoach', adminPassword: 'test-coach-pass', mailer,
     now: () => clock, loginLimit: 100, registerLimit: 100, feedbackPerHour: 4, pruneGraceMs: 0,
   });
   await app.ready;
   await new Promise((r) => app.server.listen(0, r));
   base = `http://localhost:${app.server.address().port}`;
-  admin = await signIn('coach@example.com', 'coach-password-1');
+  admin = await signIn('TestCoach', 'test-coach-pass');
   ann = (await register('Ann', 'ann@example.com')).token;
   ben = (await register('Ben', 'ben@example.com')).token;
 });
@@ -84,8 +88,34 @@ test('nobody can register as admin or take over the admin email', async () => {
   const r = await call('POST', '/api/auth/register', { name: 'Eve', email: 'eve@example.com', password: 'longenough1', role: 'admin' });
   assert.equal(r.body.user.role, 'customer');
   assert.equal((await call('GET', '/api/admin/users', undefined, r.body.token)).status, 403);
-  const dup = await call('POST', '/api/auth/register', { name: 'X', email: 'COACH@example.com', password: 'longenough1' });
-  assert.equal(dup.status, 409);
+  // the coach name is not an email address, so it can never be registered by a customer
+  assert.equal((await call('POST', '/api/auth/register', { name: 'X', email: 'TestCoach', password: 'longenough1' })).status, 400);
+});
+
+test('coach signs in with the username (any capitalisation) and password; nothing else works', async () => {
+  const r = await call('POST', '/api/auth/login', { login: 'testcoach', password: 'test-coach-pass' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.user.role, 'admin');
+  assert.equal((await call('GET', '/api/admin/workouts', undefined, r.body.token)).status, 200);
+  assert.equal((await call('POST', '/api/auth/login', { login: 'TestCoach', password: 'wrong-pass' })).status, 401);
+  assert.equal((await call('POST', '/api/auth/login', { login: 'admin', password: 'test-coach-pass' })).status, 401);
+});
+
+test('guessing the coach password from many addresses is stopped by a per-account lockout', async () => {
+  const locked = createApp({ dbPath: ':memory:', uploadDir, adminUsername: 'TestCoach', adminPassword: 'test-coach-pass', mailer, trustProxy: true, loginLimit: 1000, accountLoginLimit: 3 });
+  await locked.ready;
+  await new Promise((r) => locked.server.listen(0, r));
+  const saved = base;
+  base = `http://localhost:${locked.server.address().port}`;
+  try {
+    for (let i = 0; i < 3; i++) {
+      const r = await call('POST', '/api/auth/login', { login: 'TestCoach', password: String(1000 + i) }, null, { 'x-forwarded-for': `10.0.0.${i}` });
+      assert.equal(r.status, 401);
+    }
+    // a different address, and even the right password: still locked
+    const r = await call('POST', '/api/auth/login', { login: 'TestCoach', password: 'test-coach-pass' }, null, { 'x-forwarded-for': '10.0.0.99' });
+    assert.equal(r.status, 429);
+  } finally { base = saved; await locked.close(); }
 });
 
 test('registration and login validation', async () => {
@@ -250,4 +280,84 @@ test('logout ends the session; forged tokens are rejected', async () => {
   await call('POST', '/api/auth/logout', {}, ann);
   assert.equal((await call('GET', '/api/me', undefined, ann)).status, 401);
   assert.equal((await call('GET', '/api/me', undefined, 'A'.repeat(43))).status, 401);
+});
+
+// ---- email verification and password reset ----
+async function withApp(extra, fn) {
+  const a = createApp({ dbPath: ':memory:', uploadDir, adminUsername: 'TestCoach', adminPassword: 'test-coach-pass', mailer, appUrl: WEB, now: () => clock, ...extra });
+  await a.ready;
+  await new Promise((r) => a.server.listen(0, r));
+  const saved = base;
+  base = `http://localhost:${a.server.address().port}`;
+  try { await fn(); } finally { base = saved; await a.close(); }
+}
+
+test('email verification: unverified customers cannot post or download until they click the link', async () => {
+  await withApp({ requireVerified: true }, async () => {
+    const coach = await signIn('TestCoach', 'test-coach-pass');
+    const w = (await call('POST', '/api/admin/workouts', { title: 'Core', published: true, exercises: [{ name: 'Plank' }] }, coach)).body.workout;
+    await call('PUT', '/api/admin/wod/2026-11-20', { workout_id: w.id }, coach);
+    assert.equal((await call('GET', '/api/me', undefined, coach)).body.user.email_verified, 1, 'coach needs no verification');
+
+    outbox.length = 0;
+    const reg = await register('Zed', 'zed@example.com');
+    assert.equal(reg.verification_required, true);
+    const mail = outbox.find((m) => m.to === 'zed@example.com');
+    assert.match(mail.text, new RegExp(`^.*${WEB.replace(/[.]/g, '\\.')}/#/verify\\?token=`, 'm'));
+
+    const url = `/api/workouts/${w.id}/feedback`;
+    assert.equal((await call('POST', url, { body: 'hi' }, reg.token)).body.error, 'verify_email');
+    assert.equal((await call('GET', '/api/wod/download', undefined, reg.token)).body.error, 'verify_email');
+    assert.equal((await call('GET', url)).status, 200, 'viewing still works');
+
+    assert.equal((await call('POST', '/api/auth/verify', { token: 'A'.repeat(43) })).status, 400);
+    assert.equal((await call('POST', '/api/auth/verify', { token: tokenIn(mail) })).status, 200);
+    assert.equal((await call('POST', '/api/auth/verify', { token: tokenIn(mail) })).status, 400, 'a link works once');
+    assert.equal((await call('POST', url, { body: 'hi' }, reg.token)).status, 201);
+    assert.equal((await call('GET', '/api/wod/download', undefined, reg.token)).status, 200);
+
+    // resend: new link replaces the old one, and is limited
+    const reg2 = await register('Yan', 'yan@example.com');
+    outbox.length = 0;
+    assert.equal((await call('POST', '/api/auth/resend-verification', {}, reg2.token)).status, 200);
+    assert.equal((await call('POST', '/api/auth/verify', { token: tokenIn(outbox[0]) })).status, 200);
+  });
+});
+
+test('forgot and reset password', async () => {
+  await withApp({}, async () => {
+    const reg = await register('Dee', 'dee@example.com', 'old-password-1');
+    outbox.length = 0;
+
+    // no hint whether an address has an account, and the coach cannot be reset by email
+    for (const e of ['nobody@example.com', 'TestCoach', 'not an email']) {
+      const r = await call('POST', '/api/auth/forgot', { email: e });
+      assert.equal(r.status, 200);
+      assert.equal(r.body.ok, true);
+    }
+    assert.equal(outbox.length, 0);
+
+    assert.equal((await call('POST', '/api/auth/forgot', { email: 'DEE@example.com' })).status, 200);
+    assert.equal(outbox.length, 1);
+    const mail = outbox[0];
+    assert.equal(mail.to, 'dee@example.com');
+    assert.match(mail.text, /#\/reset\?token=/);
+    const token = tokenIn(mail);
+
+    assert.equal((await call('POST', '/api/auth/reset', { token, password: 'short' })).status, 400);
+    assert.equal((await call('POST', '/api/auth/reset', { token: 'B'.repeat(43), password: 'new-password-1' })).status, 400);
+    assert.equal((await call('POST', '/api/auth/reset', { token, password: 'new-password-1' })).status, 200);
+    assert.equal((await call('POST', '/api/auth/reset', { token, password: 'another-pass-1' })).status, 400, 'a reset link works once');
+
+    // the old session and the old password are dead; the new password works
+    assert.equal((await call('GET', '/api/me', undefined, reg.token)).status, 401);
+    assert.equal((await call('POST', '/api/auth/login', { email: 'dee@example.com', password: 'old-password-1' })).status, 401);
+    assert.equal((await call('POST', '/api/auth/login', { email: 'dee@example.com', password: 'new-password-1' })).status, 200);
+
+    // a verify link cannot be used as a reset link
+    const reg2 = await register('Eli', 'eli@example.com');
+    const verifyMail = outbox.find((m) => m.to === 'eli@example.com');
+    assert.equal((await call('POST', '/api/auth/reset', { token: tokenIn(verifyMail), password: 'new-password-1' })).status, 400);
+    void reg2;
+  });
 });

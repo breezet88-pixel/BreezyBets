@@ -11,6 +11,8 @@ const SAVED_KEY = 'fl.wod';
 const IMG_CACHE = 'fl-saved-v1';
 
 let me = null; // signed-in user, or null
+let flash = ''; // one-time message shown on the next sign-in page
+let verificationRequired = false; // does the server want customers to confirm their email first?
 
 // ---------- small helpers ----------
 function setBanner(msg) { banner.textContent = msg || ''; banner.hidden = !msg; }
@@ -24,6 +26,21 @@ function paintAccountTab() {
 }
 
 const go = (hash) => { location.hash = hash; };
+
+const needsVerify = () => !!(me && verificationRequired && !me.email_verified);
+
+// Shown instead of the post/download buttons until the customer confirms their email.
+function verifyNotice() {
+  const status = h('p', { class: 'muted', role: 'status' });
+  return h('div', { class: 'panel' },
+    h('p', {}, h('strong', {}, 'Please confirm your email address.'), ` We sent a link to ${me.email}. Open it, then come back and refresh this page.`),
+    h('div', { class: 'toolrow' }, h('button', { class: 'btn ghost small', onclick: async (e) => {
+      e.target.disabled = true;
+      try { await api('/api/auth/resend-verification', { method: 'POST', body: {} }); status.textContent = 'Sent again. Check your inbox and spam folder.'; }
+      catch (err) { status.textContent = err.message; }
+      e.target.disabled = false;
+    } }, 'Send the email again')), status);
+}
 
 function meta(w) {
   const n = w.exercise_count ?? w.exercises?.length ?? 0;
@@ -72,6 +89,7 @@ async function downloadWod() {
 
 function wodActions(day, w) {
   const status = h('p', { class: 'muted', role: 'status' });
+  if (needsVerify()) return verifyNotice();
   if (!me) {
     return h('div', {},
       h('div', { class: 'actions' }, h('button', { class: 'btn', onclick: () => go('#/account?next=' + encodeURIComponent(location.hash.slice(1) || '/')) }, 'Sign in to download today’s workout')),
@@ -216,7 +234,7 @@ async function detailView(id) {
   const feedbackBox = h('section', { class: 'reviews' },
     h('h2', {}, 'Reviews & comments'),
     h('p', { class: 'muted' }, ratingLine(w)),
-    me ? reviewForm(w.id, fb.you_rated, detailsRefresh)
+    needsVerify() ? verifyNotice() : me ? reviewForm(w.id, fb.you_rated, detailsRefresh)
       : h('p', {}, h('a', { href: `#/account?next=${encodeURIComponent(`/w/${w.id}`)}` }, 'Sign in'), ' to leave a review or comment.'),
     fb.feedback.length
       ? h('ul', { class: 'fb-list' }, fb.feedback.map((f) => h('li', {},
@@ -245,12 +263,15 @@ function accountView(query) {
   const next = new URLSearchParams(query).get('next') || '/';
   if (me) {
     app.replaceChildren(h('h1', {}, `Hi, ${me.name}`), h('p', { class: 'muted' }, me.email),
+      needsVerify() ? verifyNotice() : null,
       me.role === 'admin' ? h('p', {}, h('a', { href: '/admin' }, 'Open the coach page →')) : null,
       h('button', { class: 'btn ghost', onclick: async () => { await api('/api/auth/logout', { method: 'POST', body: {} }).catch(() => {}); store.clear(); me = null; paintAccountTab(); go('#/'); } }, 'Sign out'));
     return;
   }
   let mode = 'login';
   const box = h('div');
+  const notice = flash ? h('p', { class: 'banner', role: 'status' }, flash) : null;
+  flash = '';
   const draw = () => {
     const status = h('p', { class: 'err', role: 'alert' });
     const name = h('input', { type: 'text', autocomplete: 'name', required: true, maxlength: 60 });
@@ -264,6 +285,7 @@ function accountView(query) {
         const r = await api(`/api/auth/${mode === 'login' ? 'login' : 'register'}`, { method: 'POST', body: { name: name.value, email: email.value, password: pw.value } });
         store.set(r.token);
         me = r.user;
+        verificationRequired = !!r.verification_required;
         paintAccountTab();
         go(`#${next}`);
       } catch (err) { status.textContent = err.message; }
@@ -273,12 +295,70 @@ function accountView(query) {
     field('Email', email),
     field(mode === 'login' ? 'Password' : 'Password (at least 8 characters)', pw),
     mode === 'login' ? null : h('p', { class: 'muted' }, 'We keep your name and email only to run your account. Your email is never shown to other members.'),
+    mode === 'login' ? h('p', {}, h('a', { href: '#/forgot' }, 'Forgot your password?')) : null,
     h('div', { class: 'toolrow' }, h('button', { class: 'btn', type: 'submit' }, mode === 'login' ? 'Sign in' : 'Create account'),
       h('button', { class: 'btn ghost', type: 'button', onclick: () => { mode = mode === 'login' ? 'register' : 'login'; draw(); } }, mode === 'login' ? 'New here? Create an account' : 'I already have an account')),
     status));
   };
   draw();
-  app.replaceChildren(box);
+  app.replaceChildren(notice, box);
+}
+
+function forgotView() {
+  setTab('account');
+  setBanner('');
+  const email = h('input', { type: 'email', id: 'fe', autocomplete: 'email', required: true });
+  const status = h('p', { role: 'status', class: 'muted' });
+  app.replaceChildren(h('form', { class: 'panel', onsubmit: async (e) => {
+    e.preventDefault();
+    try {
+      await api('/api/auth/forgot', { method: 'POST', body: { email: email.value } });
+      status.textContent = 'If that email has an account, we have sent a link to choose a new password. It works for 1 hour. Check your spam folder too.';
+    } catch (err) { status.textContent = err.message; }
+  } },
+  h('h1', {}, 'Forgot your password?'),
+  h('p', { class: 'muted' }, 'Enter your email and we will send you a link to choose a new one.'),
+  h('div', { class: 'f' }, h('label', { for: 'fe' }, 'Email'), email),
+  h('div', { class: 'toolrow' }, h('button', { class: 'btn', type: 'submit' }, 'Send me the link'), h('a', { class: 'btn ghost', href: '#/account' }, 'Back to sign in')),
+  status));
+}
+
+function resetView(query) {
+  setTab('account');
+  setBanner('');
+  const token = new URLSearchParams(query).get('token') || '';
+  const pw = h('input', { type: 'password', id: 'np', autocomplete: 'new-password', required: true, minlength: 8 });
+  const status = h('p', { class: 'err', role: 'alert' });
+  app.replaceChildren(h('form', { class: 'panel', onsubmit: async (e) => {
+    e.preventDefault();
+    try {
+      await api('/api/auth/reset', { method: 'POST', body: { token, password: pw.value } });
+      store.clear();
+      me = null;
+      paintAccountTab();
+      flash = 'Password changed. Sign in with your new password.';
+      go('#/account');
+    } catch (err) { status.textContent = err.message; }
+  } },
+  h('h1', {}, 'Choose a new password'),
+  h('div', { class: 'f' }, h('label', { for: 'np' }, 'New password (at least 8 characters)'), pw),
+  h('div', { class: 'toolrow' }, h('button', { class: 'btn', type: 'submit' }, 'Change password')),
+  status));
+}
+
+async function verifyView(query) {
+  setTab('account');
+  setBanner('');
+  const token = new URLSearchParams(query).get('token') || '';
+  app.replaceChildren(h('p', { class: 'pad' }, 'Confirming your email…'));
+  try {
+    await api('/api/auth/verify', { method: 'POST', body: { token } });
+    if (store.get()) { try { me = (await api('/api/me')).user; } catch { /* signed out */ } }
+    app.replaceChildren(h('h1', {}, 'Email confirmed ✓'), h('p', {}, 'You can now leave reviews and download the workout of the day.'),
+      h('a', { class: 'btn', href: me ? '#/' : '#/account' }, me ? 'Go to today’s workout' : 'Sign in'));
+  } catch (e) {
+    app.replaceChildren(h('h1', {}, 'That link did not work'), h('p', {}, e.message), h('a', { class: 'btn ghost', href: '#/account' }, 'Sign in'));
+  }
 }
 
 async function route() {
@@ -288,6 +368,9 @@ async function route() {
     if ((m = hashPath.match(/^\/w\/(\d+)$/))) await detailView(Number(m[1]));
     else if (hashPath === '/workouts') await listView();
     else if (hashPath === '/account') accountView(query);
+    else if (hashPath === '/forgot') forgotView();
+    else if (hashPath === '/reset') resetView(query);
+    else if (hashPath === '/verify') await verifyView(query);
     else await todayView();
   } catch (e) {
     console.error(e);
@@ -298,7 +381,7 @@ async function route() {
 
 async function init() {
   if (store.get()) {
-    try { me = (await api('/api/me')).user; }
+    try { const r = await api('/api/me'); me = r.user; verificationRequired = !!r.verification_required; }
     catch (e) { if (e.status === 401) store.clear(); }
   }
   paintAccountTab();

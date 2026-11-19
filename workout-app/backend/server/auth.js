@@ -34,7 +34,7 @@ export function createSession(db, userId, ttlMs) {
 export function userForToken(db, token) {
   if (!token) return null;
   return db.prepare(
-    `SELECT u.id, u.email, u.name, u.role, u.blocked FROM sessions s JOIN users u ON u.id = s.user_id
+    `SELECT u.id, u.email, u.name, u.role, u.blocked, u.email_verified FROM sessions s JOIN users u ON u.id = s.user_id
      WHERE s.token_hash = ? AND s.expires_at > ? AND u.blocked = 0`,
   ).get(sha256(token), Date.now()) || null;
 }
@@ -62,4 +62,24 @@ export class Limiter {
     else e.n++;
   }
   clear(key) { this.hits.delete(key); }
+}
+
+// ---- one-time email links (verify / reset). Only the hash is stored. ----
+export function createEmailToken(db, userId, kind, ttlMs) {
+  const token = crypto.randomBytes(32).toString('base64url');
+  const now = Date.now();
+  db.prepare('DELETE FROM email_tokens WHERE expires_at < ?').run(now);
+  db.prepare('DELETE FROM email_tokens WHERE user_id = ? AND kind = ?').run(userId, kind); // newest link wins
+  db.prepare('INSERT INTO email_tokens (token_hash, user_id, kind, expires_at) VALUES (?,?,?,?)').run(sha256(token), userId, kind, now + ttlMs);
+  return token;
+}
+
+// Returns the user id if the token is valid, and uses it up. Otherwise null.
+export function consumeEmailToken(db, token, kind) {
+  if (!/^[A-Za-z0-9_-]{20,100}$/.test(String(token || ''))) return null;
+  const hash = sha256(token);
+  const row = db.prepare('SELECT user_id FROM email_tokens WHERE token_hash = ? AND kind = ? AND expires_at > ?').get(hash, kind, Date.now());
+  if (!row) return null;
+  db.prepare('DELETE FROM email_tokens WHERE token_hash = ?').run(hash);
+  return row.user_id;
 }

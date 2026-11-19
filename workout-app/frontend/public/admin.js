@@ -44,12 +44,12 @@ function field(label, input) {
 function loginView() {
   tabs.hidden = true;
   const msg = h('p', { class: 'err', role: 'alert' });
-  const email = h('input', { type: 'email', autocomplete: 'username', required: true });
+  const username = h('input', { type: 'text', autocomplete: 'username', autocapitalize: 'none', spellcheck: 'false', required: true });
   const pw = h('input', { type: 'password', autocomplete: 'current-password', required: true });
   app.replaceChildren(h('form', { class: 'panel', onsubmit: async (e) => {
     e.preventDefault();
     try {
-      const r = await api('/api/auth/login', { method: 'POST', body: { email: email.value, password: pw.value } });
+      const r = await api('/api/auth/login', { method: 'POST', body: { login: username.value, password: pw.value } });
       if (r.user.role !== 'admin') {
         await api('/api/auth/logout', { method: 'POST', body: {} }).catch(() => {});
         msg.textContent = 'That account is not the coach account.';
@@ -60,9 +60,9 @@ function loginView() {
       route();
     } catch (err) { msg.textContent = err.message; }
   } },
-  h('h1', {}, 'Coach sign in'), field('Email', email), field('Password', pw),
+  h('h1', {}, 'Coach sign in'), field('Username', username), field('Password', pw),
   h('div', { class: 'toolrow' }, h('button', { class: 'btn', type: 'submit' }, 'Sign in')), msg));
-  email.focus();
+  username.focus();
 }
 
 // ---------- workouts ----------

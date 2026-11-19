@@ -6,7 +6,7 @@
   "description": "FitLibrary API: JSON + image back end. Zero dependencies.",
   "engines": { "node": ">=22.13" },
   "scripts": {
-    "start": "node --disable-warning=ExperimentalWarning server/start.js",
+    "start": "node --disable-warning=ExperimentalWarning --env-file-if-exists=.env server/start.js",
     "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js"
   }
 }

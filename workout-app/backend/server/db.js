@@ -10,7 +10,15 @@ CREATE TABLE IF NOT EXISTS users (
   role TEXT NOT NULL CHECK (role IN ('admin','customer')),
   password_hash TEXT NOT NULL,
   blocked INTEGER NOT NULL DEFAULT 0,
+  email_verified INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL
+);
+-- One-time links sent by email: verify an address, or reset a password.
+CREATE TABLE IF NOT EXISTS email_tokens (
+  token_hash TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL CHECK (kind IN ('verify','reset')),
+  expires_at INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS sessions (
   token_hash TEXT PRIMARY KEY,
@@ -67,6 +75,10 @@ export function openDb(dbPath) {
   db.exec('PRAGMA foreign_keys = ON');
   if (dbPath !== ':memory:') db.exec('PRAGMA journal_mode = WAL');
   db.exec(SCHEMA);
+  // databases created before email verification existed
+  if (!db.prepare('PRAGMA table_info(users)').all().some((c) => c.name === 'email_verified')) {
+    db.exec('ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0');
+  }
   return db;
 }
 

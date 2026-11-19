@@ -6,7 +6,8 @@
 //   admin       (you)       everything else: add, edit and remove workouts, exercises, pictures,
 //                           the workout-of-the-day schedule, comments/reviews and customers
 // Customers can only ever register as customers. The single admin account comes from the
-// ADMIN_EMAIL / ADMIN_PASSWORD environment variables.
+// ADMIN_USERNAME / ADMIN_PASSWORD environment variables (the admin signs in with a username,
+// customers with an email address, so a customer can never take over the admin name).
 import http from 'node:http';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -14,7 +15,9 @@ import path from 'node:path';
 import { openDb, inTransaction } from './db.js';
 import {
   hashPassword, verifyPassword, DUMMY_HASH, createSession, userForToken, deleteSession, bearer, Limiter,
+  createEmailToken, consumeEmailToken,
 } from './auth.js';
+import { createMailer } from './mailer.js';
 import {
   HttpError, IMAGE_NAME, text, normEmail, validEmail, validDay, addDays, cleanWorkout,
 } from './validate.js';
@@ -40,12 +43,16 @@ export function createApp(opts = {}) {
     dbPath: './data/fitlibrary.db',
     uploadDir: './data/uploads',
     corsOrigins: list(process.env.CORS_ORIGINS),
-    adminEmail: process.env.ADMIN_EMAIL,
+    adminUsername: process.env.ADMIN_USERNAME || process.env.ADMIN_EMAIL,
     adminPassword: process.env.ADMIN_PASSWORD,
+    mailer: null,                                   // set below if not given
+    appUrl: process.env.APP_URL || '',              // web address of the front end, used in email links
+    // default: on when real email sending is configured. REQUIRE_EMAIL_VERIFICATION=true/false overrides.
+    requireVerified: process.env.REQUIRE_EMAIL_VERIFICATION ? process.env.REQUIRE_EMAIL_VERIFICATION === 'true' : undefined,
     trustProxy: process.env.TRUST_PROXY === 'true',
     timezone: process.env.TIMEZONE || 'Africa/Johannesburg',
     now: () => new Date(),
-    loginLimit: 10, registerLimit: 10, feedbackPerHour: 10,
+    loginLimit: 10, accountLoginLimit: 5, registerLimit: 10, feedbackPerHour: 10, forgotPerHour: 3,
     pruneGraceMs: HOUR,
     ...opts,
   };
@@ -53,25 +60,43 @@ export function createApp(opts = {}) {
   fs.mkdirSync(o.uploadDir, { recursive: true });
   const uploadRoot = path.resolve(o.uploadDir);
   const db = openDb(o.dbPath);
-  const loginFails = new Limiter();
+  const loginFails = new Limiter();      // wrong passwords per IP
+  const accountFails = new Limiter();    // wrong passwords per account, from anywhere
   const registers = new Limiter();
+  const emailSends = new Limiter();      // forgot/resend emails per address
+  const mailer = o.mailer || createMailer();
+  const requireVerifiedOn = o.requireVerified ?? mailer.real;
+  const appUrl = (o.appUrl || o.corsOrigins[0] || 'http://localhost:8080').replace(/\/$/, '');
+  const VERIFY_TTL = 24 * HOUR;
+  const RESET_TTL = HOUR;
 
   const dayFmt = new Intl.DateTimeFormat('en-CA', { timeZone: o.timezone, year: 'numeric', month: '2-digit', day: '2-digit' });
   const today = () => dayFmt.format(o.now());
 
-  // The one admin account. Re-running with a new ADMIN_PASSWORD changes the password.
+  // The one admin account. Re-running with a new ADMIN_PASSWORD changes the password (and signs the admin out).
   const ready = (async () => {
-    if (!o.adminEmail || !o.adminPassword) return;
-    const email = normEmail(o.adminEmail);
-    const row = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+    if (!o.adminUsername || !o.adminPassword) return;
+    const login = normEmail(o.adminUsername);
+    const row = db.prepare('SELECT * FROM users WHERE email = ?').get(login);
     if (!row) {
-      db.prepare('INSERT INTO users (email, name, role, password_hash, created_at) VALUES (?,?,?,?,?)')
-        .run(email, 'Coach', 'admin', await hashPassword(o.adminPassword), new Date().toISOString());
+      db.prepare('INSERT INTO users (email, name, role, password_hash, email_verified, created_at) VALUES (?,?,?,?,1,?)')
+        .run(login, 'Coach', 'admin', await hashPassword(o.adminPassword), new Date().toISOString());
     } else if (row.role !== 'admin' || !(await verifyPassword(o.adminPassword, row.password_hash))) {
-      db.prepare("UPDATE users SET role = 'admin', blocked = 0, password_hash = ? WHERE id = ?")
+      db.prepare("UPDATE users SET role = 'admin', blocked = 0, email_verified = 1, password_hash = ? WHERE id = ?")
         .run(await hashPassword(o.adminPassword), row.id);
+      db.prepare('DELETE FROM sessions WHERE user_id = ?').run(row.id);
     }
   })();
+
+  function sendEmail(to, subject, text) {
+    // not awaited: the reply must not reveal whether an address has an account
+    Promise.resolve().then(() => mailer.send({ to, subject, text })).catch((e) => console.error('email failed:', e.message));
+  }
+  function sendVerifyEmail(user) {
+    const token = createEmailToken(db, user.id, 'verify', VERIFY_TTL);
+    sendEmail(user.email, 'Confirm your email for FitLibrary',
+      `Hi ${user.name},\n\nConfirm your email address to leave reviews and download the workout of the day:\n${appUrl}/#/verify?token=${token}\n\nThis link works for 24 hours. If you did not create an account, ignore this email.`);
+  }
 
   // ---------- http helpers ----------
   const clientIp = (req) => {
@@ -134,6 +159,11 @@ export function createApp(opts = {}) {
     const u = currentUser(req);
     if (!u) throw new HttpError(401, 'sign_in_required', 'Please sign in.');
     return u;
+  }
+  function requireVerified(user) {
+    if (requireVerifiedOn && !user.email_verified) {
+      throw new HttpError(403, 'verify_email', 'Please confirm your email address first. Check your inbox for the link.');
+    }
   }
   function requireAdmin(req) {
     const u = requireUser(req);
@@ -237,31 +267,84 @@ export function createApp(opts = {}) {
         .run(email, name, await hashPassword(password), new Date().toISOString());
       const id = Number(r.lastInsertRowid);
       const token = createSession(db, id, SESSION_TTL.customer);
-      return json(res, 201, { token, user: { id, name, email, role: 'customer' } });
+      sendVerifyEmail({ id, name, email });
+      return json(res, 201, { token, user: { id, name, email, role: 'customer', email_verified: 0 }, verification_required: requireVerifiedOn });
     }
     if (m === 'POST' && p === '/api/auth/login') {
       const ip = clientIp(req);
       if (loginFails.count(ip) >= o.loginLimit) throw new HttpError(429, 'too_many_attempts', 'Too many attempts. Try again in 15 minutes.');
       const b = await readJson(req);
-      const row = db.prepare('SELECT * FROM users WHERE email = ?').get(normEmail(b.email));
+      const login = normEmail(b.login ?? b.email);   // customers use their email, the coach uses a username
+      // Also limit per account, so guessing from many addresses at once does not get around the limit.
+      if (accountFails.count(login) >= o.accountLoginLimit) throw new HttpError(429, 'too_many_attempts', 'Too many wrong passwords for this account. Try again in 15 minutes.');
+      const row = db.prepare('SELECT * FROM users WHERE email = ?').get(login);
       const ok = await verifyPassword(String(b.password ?? '').slice(0, 200), row ? row.password_hash : DUMMY_HASH);
-      if (!row || !ok) { loginFails.add(ip, 15 * 60 * 1000); throw new HttpError(401, 'bad_credentials', 'Wrong email or password.'); }
+      if (!row || !ok) {
+        loginFails.add(ip, 15 * 60 * 1000);
+        accountFails.add(login, 15 * 60 * 1000);
+        throw new HttpError(401, 'bad_credentials', 'Wrong username/email or password.');
+      }
       if (row.blocked) throw new HttpError(403, 'blocked', 'This account has been blocked.');
       loginFails.clear(ip);
+      accountFails.clear(login);
       const token = createSession(db, row.id, SESSION_TTL[row.role]);
-      return json(res, 200, { token, user: { id: row.id, name: row.name, email: row.email, role: row.role } });
+      return json(res, 200, {
+        token, verification_required: requireVerifiedOn,
+        user: { id: row.id, name: row.name, email: row.email, role: row.role, email_verified: row.email_verified },
+      });
     }
     if (m === 'POST' && p === '/api/auth/logout') {
       deleteSession(db, bearer(req));
       return json(res, 200, { ok: true });
     }
     if (m === 'GET' && p === '/api/me') {
-      return json(res, 200, { user: requireUser(req) });
+      return json(res, 200, { user: requireUser(req), verification_required: requireVerifiedOn });
+    }
+    if (m === 'POST' && p === '/api/auth/verify') {
+      const id = consumeEmailToken(db, (await readJson(req)).token, 'verify');
+      if (!id) throw new HttpError(400, 'bad_link', 'That link has expired or was already used. Sign in and ask for a new one.');
+      db.prepare('UPDATE users SET email_verified = 1 WHERE id = ?').run(id);
+      return json(res, 200, { ok: true });
+    }
+    if (m === 'POST' && p === '/api/auth/resend-verification') {
+      const user = requireUser(req);
+      if (user.email_verified) return json(res, 200, { ok: true });
+      if (emailSends.count(`verify:${user.id}`) >= o.forgotPerHour) throw new HttpError(429, 'slow_down', 'We already sent you a few emails. Please check your inbox and spam folder.');
+      emailSends.add(`verify:${user.id}`, HOUR);
+      sendVerifyEmail(user);
+      return json(res, 200, { ok: true });
+    }
+    if (m === 'POST' && p === '/api/auth/forgot') {
+      const ip = clientIp(req);
+      const email = normEmail((await readJson(req)).email);
+      if (emailSends.count(`ip:${ip}`) >= 10) throw new HttpError(429, 'slow_down', 'Too many requests. Try again later.');
+      emailSends.add(`ip:${ip}`, HOUR);
+      const row = validEmail(email) ? db.prepare("SELECT * FROM users WHERE email = ? AND role = 'customer' AND blocked = 0").get(email) : null;
+      if (row && emailSends.count(`reset:${row.id}`) < o.forgotPerHour) {
+        emailSends.add(`reset:${row.id}`, HOUR);
+        const token = createEmailToken(db, row.id, 'reset', RESET_TTL);
+        sendEmail(row.email, 'Reset your FitLibrary password',
+          `Hi ${row.name},\n\nChoose a new password here:\n${appUrl}/#/reset?token=${token}\n\nThis link works for 1 hour. If you did not ask for it, ignore this email: your password has not changed.`);
+      }
+      // same answer whether or not the address has an account
+      return json(res, 200, { ok: true });
+    }
+    if (m === 'POST' && p === '/api/auth/reset') {
+      const b = await readJson(req);
+      const password = String(b.password ?? '');
+      if (password.length < 8 || password.length > 200) throw new HttpError(400, 'invalid', 'Password must be at least 8 characters.');
+      const id = consumeEmailToken(db, b.token, 'reset');
+      if (!id) throw new HttpError(400, 'bad_link', 'That link has expired or was already used. Ask for a new one.');
+      // they proved they own the inbox, so the address counts as confirmed; everyone is signed out
+      db.prepare("UPDATE users SET password_hash = ?, email_verified = 1 WHERE id = ? AND role = 'customer'").run(await hashPassword(password), id);
+      db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id);
+      return json(res, 200, { ok: true });
     }
 
     // ===== customers (signed in) =====
     if (m === 'POST' && (mt = p.match(/^\/api\/workouts\/(\d+)\/feedback$/))) {
       const user = requireUser(req);
+      requireVerified(user);
       const id = Number(mt[1]);
       if (!db.prepare('SELECT 1 FROM workouts WHERE id = ? AND published = 1').get(id)) throw new HttpError(404, 'not_found', 'Workout not found.');
       const b = await readJson(req);
@@ -284,7 +367,7 @@ export function createApp(opts = {}) {
       return json(res, 201, { feedback: feedbackOut({ id: Number(r.lastInsertRowid), name: user.name, rating, body, created_at: created }), ...ratingOf(id) });
     }
     if (m === 'GET' && p === '/api/wod/download') {
-      requireUser(req);
+      requireVerified(requireUser(req));
       const day = today();
       const row = wodRow(day);
       if (!row) throw new HttpError(404, 'no_wod', 'There is no workout of the day to download yet.');
