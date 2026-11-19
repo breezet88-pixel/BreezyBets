@@ -1,6 +1,31 @@
 # Putting FitLibrary online
 
-Two small apps: the **API** (`backend/`) and the **website** (`frontend/`). The files below are set up for [Fly.io](https://fly.io) in Johannesburg, which needs a Fly account and card. I have not been able to deploy to your account from here, so treat these as a tested-locally starting point and expect to adjust names.
+Two small apps: the **API** (`backend/`) and the **website** (`frontend/`). The files below are set up for [Fly.io](https://fly.io) in Johannesburg, which needs a Fly account and card. Both Docker images have been built and run locally (including data surviving a container restart); the deploy to your own Fly account has not been run yet.
+
+## Automatic deploys (recommended)
+
+The repository has a GitHub Actions workflow (`.github/workflows/fitlibrary-deploy.yml`). On every push to this app's branch it runs all the tests, then deploys the API and the website to Fly.io. It creates the two apps and the data disk the first time, keeps the API on exactly **one** machine (the database is one file), and checks both are up. You only do this once:
+
+1. **Fly.io account.** Sign up at fly.io and add a payment card (Fly needs one even for small apps).
+2. **Fly token.** Create an **organisation** token: in the Fly dashboard under *Tokens*, or with `fly tokens create org` if you have flyctl installed. It must be an org token (not an app token) because the first run creates the apps. Copy it once; Fly will not show it again.
+3. **GitHub secrets.** In GitHub open the repository → *Settings* → *Secrets and variables* → *Actions* → *New repository secret*, and add:
+
+   | Secret | Value |
+   |---|---|
+   | `FLY_API_TOKEN` | the Fly token (if the betting app already uses this secret with the same Fly account, keep it) |
+   | `FITLIBRARY_ADMIN_USERNAME` | your coach username |
+   | `FITLIBRARY_ADMIN_PASSWORD` | your coach password (12+ characters strongly recommended) |
+   | `FITLIBRARY_EMAIL_API_KEY`, `FITLIBRARY_EMAIL_FROM` | optional, for real emails (step 3 below) |
+
+   Secrets are encrypted by GitHub, hidden in logs, and never stored in the code.
+4. **Run it.** Open the *Actions* tab → *FitLibrary test and deploy* → the latest run → *Re-run all jobs*. (Any later push also deploys.) The first deploy takes a few minutes.
+5. When it finishes, the run summary shows your **website**, **coach page** and **API** addresses, by default `https://fitlibrary-web.fly.dev` and `https://fitlibrary-api.fly.dev`.
+
+If a run fails with *"Name has already been taken"*, someone else on Fly has that app name. Under *Settings* → *Secrets and variables* → *Actions* → *Variables*, set `FITLIBRARY_API_APP` and `FITLIBRARY_WEB_APP` to names of your own (e.g. `lindeni-fit-api`), then re-run. For your own domain later, also set `FITLIBRARY_WEB_URL` (and `FITLIBRARY_API_URL` if the API gets one).
+
+Until the secrets exist, the workflow only runs the tests and leaves a notice saying what is missing.
+
+## Deploying by hand instead
 
 ## 1. The API
 
