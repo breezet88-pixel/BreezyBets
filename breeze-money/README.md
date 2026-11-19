@@ -21,6 +21,9 @@ Open the site on a phone and choose Install app or Add to Home Screen. It then w
 - Tax is worked out from the payslip (PAYE and UIF divided by gross pay), never from built-in tax tables.
 - Virgin Active classes can be ticked **Taught** or **Cancelled**. Cancelled classes stay in the list, struck through, but are
   not counted anywhere (invoice, forecast, tax set-aside). Past classes that are not ticked show a one-tap **Mark all as taught**.
+- The Money page has a **rent planner**: a what-if that shows what a monthly rent would leave you across the next year
+  (average free to spend, share of take-home, any short months). It never changes the real numbers; rent becomes a real
+  cost only when added with the Rent or bond button in Setup.
 - Overview shows **Free to spend**: what is left after deductions, regular costs, expenses and savings, as a rough amount a day.
 - B-Active has an extra-loan-payment what-if (interest is only used if a yearly rate is typed in Setup); Savings has a
   what-if for a different monthly amount, plus the savings rate as a share of take-home.
