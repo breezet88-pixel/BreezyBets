@@ -1,5 +1,5 @@
-// ApexBucks service worker. Build 7076d90b92.
-const V = 'apexbucks-7076d90b92';
+// ApexBucks service worker. Build 9d8ed4155b.
+const V = 'apexbucks-9d8ed4155b';
 const SHELL = ["./","index.html","manifest.webmanifest","logo.jpg","icons/icon-192.png","icons/icon-512.png","icons/icon-maskable-512.png","icons/apple-touch-icon-180.png"];
 const EXT = ['fonts.googleapis.com', 'fonts.gstatic.com', 'cdn.jsdelivr.net'];
 self.addEventListener('install', (e) => {
