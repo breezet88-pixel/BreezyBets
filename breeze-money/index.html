@@ -550,7 +550,7 @@ var ui={
   view:'overview',month:mkOf(today),vaMonth:payMonthOf(today),moneyMonth:mkOf(today),beMonth:mkOf(today),beYear:+today.slice(0,4),
   venue:'all',fill:null,armed:null,
   va:null,money:null,slip:null,slipOpen:false,
-  nc:{name:'',venue:'',rate:230},ntt:{dow:1,classId:'',start:'06:00'},nrec:{label:'',category:'',amount:'',per:'month',pct:'',from:'',until:''},npre:{label:'',category:'',amount:''},nhol:{date:'',name:''},nleave:{from:'',to:'',label:''},week:'',wk:null,taxYear:2026,fcYear:+today.slice(0,4),ncut:{mk:'',date:''},
+  nc:{name:'',venue:'',rate:230},ntt:{dow:1,classId:'',start:'06:00'},nrec:{label:'',category:'',amount:'',per:'month',pct:'',from:'',until:''},npre:{label:'',category:'',amount:''},nhol:{date:'',name:''},nleave:{from:'',to:'',label:''},week:'',wk:null,taxYear:2026,paste:{open:false,text:''},fcYear:+today.slice(0,4),ncut:{mk:'',date:''},
   voice:{open:false,text:'',partial:'',listening:false,busy:false,items:null,error:'',via:''}
 };
 var caps={dict:null,sample:null,dl:null};
@@ -957,7 +957,7 @@ function viewSetup(){
     '<form class="form" data-form="ncut"><div class="fld"><label for="nc-m">Paid in month</label><input id="nc-m" type="month" data-b="ncut.mk" value="'+esc(ui.ncut.mk)+'" required></div><div class="fld"><label for="nc-d">Invoice ends on</label><input id="nc-d" type="date" data-b="ncut.date" value="'+esc(ui.ncut.date)+'" required></div><div class="actions"><button class="btn" type="submit">Set cut-off</button></div></form><p class="note" style="margin-top:10px">The next invoice then starts the day after.</p></div>';
   var install=installCard();
   var nS=sum(Object.keys(state.periods),function(k){return state.periods[k].length}),nE=sum(Object.keys(state.ledger),function(k){return state.ledger[k].length});
-  var data='<div class="card"><h2>Your data <small>'+nS+' classes · '+nE+' entries</small></h2><p class="note">'+(store.mode==='cloud'?'Saved to your account, so it is the same on your phone and laptop.':'Saved on this device only. Download a backup now and then. Restore puts a backup back, for example on a new phone.')+'</p><div class="chips" style="margin-top:12px"><button class="btn" data-act="export-csv">Download classes and money (CSV)</button><button class="btn" data-act="export-json">Download full backup (JSON)</button>'+(store.mode==='local'?'<button class="btn" data-act="imp-pick">Restore from backup</button>':'')+'</div>'+importPanel()+'</div>';
+  var data='<div class="card"><h2>Your data <small>'+nS+' classes · '+nE+' entries</small></h2><p class="note">'+(store.mode==='cloud'?'Saved to your account, so it is the same on your phone and laptop.':'Saved on this device only. Download a backup now and then. Restore puts a backup back, for example on a new phone.')+'</p><div class="chips" style="margin-top:12px"><button class="btn" data-act="export-csv">Download classes and money (CSV)</button><button class="btn" data-act="export-json">Download full backup (JSON)</button><button class="btn" data-act="copy-backup">Copy backup to clipboard</button>'+(store.mode==='local'?'<button class="btn" data-act="paste-open">Paste backup</button><button class="btn" data-act="imp-pick">Restore from backup file</button>':'')+'</div>'+pastePanel()+importPanel()+'</div>';
   return head+'<div class="grid2"><div class="stack">'+cls+tt+rec+pre+'</div><div class="stack">'+install+be+leaveCard+cutCard+hol+data+'</div></div>';
 }
 
@@ -1137,21 +1137,27 @@ function plainDownload(name,data){
   }catch(e){toast('Could not save the file')}
 }
 function hasAnyData(){return Object.keys(state.periods).some(function(k){return state.periods[k].length})||Object.keys(state.ledger).some(function(k){return state.ledger[k].length})||S().timetable.length>0}
+function parseBackup(text){
+  try{
+    var j=JSON.parse(String(text||'').trim());
+    if(!j||typeof j!=='object'||!j.settings||typeof j.periods!=='object'||typeof j.ledger!=='object')throw new Error('shape');
+    var nS=0,nE=0,dates=[];
+    Object.keys(j.periods).forEach(function(k){(j.periods[k]||[]).forEach(function(x){nS++;dates.push(x.date)})});
+    Object.keys(j.ledger).forEach(function(k){nE+=(j.ledger[k]||[]).length});
+    dates.sort();ui.imp={data:j,nS:nS,nE:nE,first:dates[0],last:dates[dates.length-1]};
+    ui.paste.open=false;ui.paste.text='';render();return true;
+  }catch(e){toast('That is not an ApexBucks backup. Copy it again and retry');return false}
+}
 function readImport(file){
   if(!file)return;
   var fr=new FileReader();
-  fr.onload=function(){
-    try{
-      var j=JSON.parse(fr.result);
-      if(!j||typeof j!=='object'||!j.settings||typeof j.periods!=='object'||typeof j.ledger!=='object')throw new Error('shape');
-      var nS=0,nE=0,dates=[];
-      Object.keys(j.periods).forEach(function(k){(j.periods[k]||[]).forEach(function(x){nS++;dates.push(x.date)})});
-      Object.keys(j.ledger).forEach(function(k){nE+=(j.ledger[k]||[]).length});
-      dates.sort();ui.imp={data:j,nS:nS,nE:nE,first:dates[0],last:dates[dates.length-1]};render();
-    }catch(e){toast('That file is not an ApexBucks backup')}
-  };
+  fr.onload=function(){parseBackup(fr.result)};
   fr.onerror=function(){toast('Could not read that file')};
   fr.readAsText(file);
+}
+function pastePanel(){
+  if(!ui.paste.open)return '';
+  return '<div style="margin-top:14px"><div class="fld"><label for="paste-text">Paste your backup here</label><textarea id="paste-text" data-b="paste.text" placeholder="Paste the backup you copied">'+esc(ui.paste.text)+'</textarea></div><div class="chips" style="margin-top:10px"><button class="btn primary" data-act="paste-go">Read backup</button><button class="btn" data-act="paste-close">Cancel</button></div></div>';
 }
 function importPanel(){
   var i=ui.imp;if(!i)return '';
@@ -1159,7 +1165,7 @@ function importPanel(){
 }
 function welcomeCard(){
   if(store.mode!=='local'||(hasAnyData()&&!ui.imp))return '';
-  return '<div class="card" style="margin-bottom:18px;max-width:1000px"><h2>Welcome to ApexBucks</h2>'+(ui.imp?'':'<p class="note" style="font-size:14px">Your numbers are saved on this phone. To bring across your classes, pay and savings from the earlier version, download its full backup (Setup, Your data), then choose that file here.</p><div class="chips" style="margin-top:12px"><button class="btn primary" data-act="imp-pick">Choose backup file</button></div>')+importPanel()+'</div>';
+  return '<div class="card" style="margin-bottom:18px;max-width:1000px"><h2>Welcome to ApexBucks</h2>'+(ui.imp?'':'<p class="note" style="font-size:14px">Your numbers are saved on this phone. To bring across your classes, pay and savings from the earlier version, open the earlier version, go to Setup, Your data and tap Copy backup to clipboard. Then tap Paste backup here. You can also choose a downloaded backup file.</p><div class="chips" style="margin-top:12px"><button class="btn primary" data-act="paste-open">Paste backup</button><button class="btn" data-act="imp-pick">Choose backup file</button></div>')+pastePanel()+importPanel()+'</div>';
 }
 function installCard(){
   if(!HOSTED)return '<div class="card"><h2>Put it on your phone <small>Home screen shortcut</small></h2><div class="note" style="display:flex;flex-direction:column;gap:10px"><p><b style="color:var(--text)">Android (Chrome)</b><br>Open this page in Chrome while signed in to Claude. Tap the three dots, then Add to Home screen (or Install app), then Add.</p><p><b style="color:var(--text)">iPhone (Safari)</b><br>Open this page in Safari. Tap Share, then Add to Home Screen, then Add.</p><p>It then opens from your home screen like an app. Your numbers are saved to your account, so your phone and laptop always match. It needs an internet connection and your Claude sign-in. For Quick add, the microphone on your phone keyboard works well.</p></div></div>';
@@ -1208,7 +1214,7 @@ function invoiceText(){
   return lines.join('\n');
 }
 function copyText(t){
-  var done=function(){toast('Copied to your clipboard')};
+  var done=function(){toast('Copied. Paste it where you need it')};
   if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(done,function(){fallbackCopy(t)})}else fallbackCopy(t);
 }
 function fallbackCopy(t){var ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');toast('Copied to your clipboard')}catch(e){toast('Select and copy the text manually')}ta.remove()}
@@ -1230,6 +1236,10 @@ document.addEventListener('click',function(e){
     case 'wk-step':{var wd=+t.getAttribute('data-dir');ui.week=wd===0?mondayOf(today):addDays(ui.week,7*wd);resetWk();render();break}
     case 'tax-year':{var ty2=ui.taxYear+(+t.getAttribute('data-dir'));if(ty2<2026)break;ui.taxYear=ty2;render();break}
     case 'tax-done':{var tp=S().taxpot,tmk=t.getAttribute('data-m');var to=tp.months[tmk]=tp.months[tmk]||{};to.done=!to.done;markDirty('settings/main');toast(to.done?'Ticked as set aside':'Unticked');render();break}
+    case 'copy-backup':copyText(JSON.stringify(state));break;
+    case 'paste-open':ui.paste.open=true;render();setTimeout(function(){var el=document.getElementById('paste-text');if(el)el.focus()},60);break;
+    case 'paste-close':ui.paste.open=false;ui.paste.text='';render();break;
+    case 'paste-go':{var pe=document.getElementById('paste-text');parseBackup(pe?pe.value:ui.paste.text);break}
     case 'imp-pick':{var fi=document.getElementById('imp-file');if(fi)fi.click();break}
     case 'imp-cancel':ui.imp=null;render();break;
     case 'imp-go':{var bj=ui.imp&&ui.imp.data;if(!bj)break;applySettings(clone(bj.settings));state.periods=clone(bj.periods);state.ledger=clone(bj.ledger);ui.imp=null;noteBackup();ui.month=mkOf(today);ui.vaMonth=payMonthOf(today);ui.moneyMonth=mkOf(today);ui.beMonth=mkOf(today);dataVer++;markDirty('settings/main');toast('Backup restored');render();break}
