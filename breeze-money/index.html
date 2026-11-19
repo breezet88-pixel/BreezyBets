@@ -35,9 +35,10 @@ a{color:inherit}
 .bname{display:flex;flex-direction:column;gap:5px;text-transform:none;font-size:32px;letter-spacing:.03em}
 .bname small{text-transform:uppercase}
 .brand small{font:500 12px var(--f-body);letter-spacing:.08em;color:var(--muted)}
-.pill{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:4px 11px;white-space:nowrap}
+.pill{flex:none;display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:4px 11px;white-space:nowrap}
 .pill::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--ok)}
-.pill.saving::before{background:var(--warn)} .pill.err::before,.pill.local::before{background:var(--red)}
+.pill.saving::before{background:var(--warn)} .pill.err::before{background:var(--red)}
+.pill.local::before{background:var(--warn)}
 .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:22px}
 .tabs a{padding:11px 16px;text-decoration:none;color:var(--muted);font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
 .tabs a:hover{color:var(--text)}
@@ -243,6 +244,9 @@ a.brand{color:inherit;text-decoration:none}
   .cls-row .cvenue{grid-column:2/-1}
   .stepper .cur{min-width:0;flex:1}
   .brand small{display:none}
+  .bname{font-size:28px}
+  .brand .mark{width:52px;height:52px}
+  .top{gap:8px}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
@@ -339,7 +343,7 @@ function defaultSettings(){return{
     {id:'melrose-shape',name:'Melrose Shape',venue:'Melrose Arch',rate:230,color:'#6fb3e0',active:true}
   ],
   timetable:[],
-  be:{basic:15000,payDay:25,from:'2026-10',uifPct:1,uifCap:177.12,loan:{monthly:0,balance:0,asOf:''},legacy:{},unpaidDays:{},payslips:{}},
+  be:{basic:0,payDay:25,from:'2026-10',uifPct:1,uifCap:177.12,loan:{monthly:0,balance:0,asOf:''},legacy:{},unpaidDays:{},payslips:{}},
   tax:{vaSetAside:true},
   recurring:[],
   presets:[
@@ -378,7 +382,7 @@ var clone=function(o){return JSON.parse(JSON.stringify(o))};
 function setStatus(){
   var el=document.getElementById('sync');if(!el)return;
   var t='Saved',c='';
-  if(store.mode==='local'){t='Saved on this device only';c='local'}
+  if(store.mode==='local'){t='On this device';c='local'}
   else if(store.failed){t='Could not save. Retrying';c='err'}
   else if(dirty.size||inflight.size){t='Saving';c='saving'}
   else if(store.mode==='loading'||!(store.loaded.s&&store.loaded.p&&store.loaded.l)){t='Loading your numbers';c='saving'}
@@ -426,13 +430,18 @@ async function refreshData(){
       state.ledger=nl;
     }else{loadLocal()}
     dataVer++;ui.lastRefresh=new Date();toast('Refreshed. Everything is up to date');
+    if(swReg){
+      try{await swReg.update()}catch(e){}
+      await new Promise(function(res){var w=swReg.installing;if(!w)return res();w.addEventListener('statechange',function(){if(w.state==='installed'||w.state==='redundant')res()});setTimeout(res,6000)});
+      if(swReg.waiting){ui.swUpdating=true;toast('New version found. Updating');swReg.waiting.postMessage('skip')}
+    }
   }catch(e){toast('Could not refresh. Check your connection and try again')}
   ui.refreshing=false;render();
 }
 async function initStore(){
   var db=null;
   try{db=await (window.claude&&window.claude.use?window.claude.use('db'):null)}catch(e){db=null}
-  if(!db){store.mode='local';loadLocal();setStatus();render();return}
+  if(!db){store.mode='local';loadLocal();ui.lastRefresh=new Date();setStatus();render();return}
   store.db=db;store.mode='cloud';
   var t=setTimeout(function(){store.slow=true;setStatus()},10000);
   var done=function(k){store.loaded[k]=true;if(store.loaded.s&&store.loaded.p&&store.loaded.l){clearTimeout(t);store.slow=false;if(!ui.lastRefresh)ui.lastRefresh=new Date()}setStatus();render()};
@@ -528,6 +537,8 @@ var ui={
   voice:{open:false,text:'',partial:'',listening:false,busy:false,items:null,error:'',via:''}
 };
 var caps={dict:null,sample:null,dl:null};
+var HOSTED=!(window.claude&&window.claude.use);
+var swReg=null,installEvt=null;
 function resetVa(keep){
   var p=period(ui.vaMonth);var d=today>=p.start&&today<=p.end?today:p.start;
   var act=S().classes.filter(function(c){return c.active});
@@ -614,7 +625,7 @@ function viewOverview(){
     tile('forecast','Forecast',String(mkParse(mk).y),'Every month of the year')+
     tile('setup','Setup',String(S().timetable.length),'classes a week, rates and leave')+
     '</div>';
-  return head+band+tiles;
+  return head+welcomeCard()+band+tiles;
 }
 function yearCard(){
   var yr=mkParse(ui.month).y,rows='',t={n:0,va:0,be:0,gr:0,de:0,ex:0,us:0,sv:0,left:0};
@@ -821,9 +832,9 @@ function viewSetup(){
   var cuts=Object.keys(st.cutoffs||{}).sort();
   var cutCard='<div class="card"><h2>Invoice cut-offs <small>Exceptions to the 10th</small></h2>'+(cuts.length?'<div class="chips" style="margin-bottom:12px">'+cuts.map(function(k){return '<span class="chip">Paid '+monthLabel(k)+': ends '+fmtDs(st.cutoffs[k])+', next starts '+fmtDs(addDays(st.cutoffs[k],1))+' <button class="btn small ghost" style="min-height:22px;padding:0 6px;border:0" data-act="cut-del" data-k="'+k+'" aria-label="Remove">&times;</button></span>'}).join('')+'</div>':'<p class="note" style="margin-bottom:12px">Every invoice runs from the 11th to the 10th.</p>')+
     '<form class="form" data-form="ncut"><div class="fld"><label for="nc-m">Paid in month</label><input id="nc-m" type="month" data-b="ncut.mk" value="'+esc(ui.ncut.mk)+'" required></div><div class="fld"><label for="nc-d">Invoice ends on</label><input id="nc-d" type="date" data-b="ncut.date" value="'+esc(ui.ncut.date)+'" required></div><div class="actions"><button class="btn" type="submit">Set cut-off</button></div></form><p class="note" style="margin-top:10px">The next invoice then starts the day after.</p></div>';
-  var install='<div class="card"><h2>Put it on your phone <small>Home screen shortcut</small></h2><div class="note" style="display:flex;flex-direction:column;gap:10px"><p><b style="color:var(--text)">Android (Chrome)</b><br>Open this page in Chrome while signed in to Claude. Tap the three dots, then Add to Home screen (or Install app), then Add.</p><p><b style="color:var(--text)">iPhone (Safari)</b><br>Open this page in Safari. Tap Share, then Add to Home Screen, then Add.</p><p>It then opens from your home screen like an app. Your numbers are saved to your account, so your phone and laptop always match. It needs an internet connection and your Claude sign-in. For Quick add, the microphone on your phone keyboard works well.</p></div></div>';
+  var install=installCard();
   var nS=sum(Object.keys(state.periods),function(k){return state.periods[k].length}),nE=sum(Object.keys(state.ledger),function(k){return state.ledger[k].length});
-  var data='<div class="card"><h2>Your data <small>'+nS+' classes · '+nE+' entries</small></h2><p class="note">'+(store.mode==='cloud'?'Saved to your account, so it is the same on your phone and laptop.':'Saved in this browser only.')+'</p><div class="chips" style="margin-top:12px"><button class="btn" data-act="export-csv">Download classes and money (CSV)</button><button class="btn" data-act="export-json">Download full backup (JSON)</button></div></div>';
+  var data='<div class="card"><h2>Your data <small>'+nS+' classes · '+nE+' entries</small></h2><p class="note">'+(store.mode==='cloud'?'Saved to your account, so it is the same on your phone and laptop.':'Saved on this device only. Download a backup now and then. Restore puts a backup back, for example on a new phone.')+'</p><div class="chips" style="margin-top:12px"><button class="btn" data-act="export-csv">Download classes and money (CSV)</button><button class="btn" data-act="export-json">Download full backup (JSON)</button>'+(store.mode==='local'?'<button class="btn" data-act="imp-pick">Restore from backup</button>':'')+'</div>'+importPanel()+'</div>';
   return head+'<div class="grid2"><div class="stack">'+cls+tt+rec+pre+'</div><div class="stack">'+install+be+leaveCard+cutCard+hol+data+'</div></div>';
 }
 
@@ -863,7 +874,7 @@ function doRender(){
   var lr=ui.lastRefresh;
   var foot='<footer class="foot"><button class="btn" data-act="refresh"'+(ui.refreshing?' disabled':'')+'>'+REFRESH.replace('<svg ','<svg '+(ui.refreshing?'class="spin" ':''))+(ui.refreshing?'Refreshing':'Refresh')+'</button><span class="note">'+(lr?'Last refreshed '+pad(lr.getHours())+':'+pad(lr.getMinutes()):'Use this after adding or removing anything')+'</span></footer>';
   app.innerHTML='<header class="top"><a class="brand" href="#overview" aria-label="ApexBucks, home"><img class="mark" src="logo.jpg" alt="Apex by Breeze logo" width="60" height="60"><span class="bname">ApexBucks<small>Apex by Breeze</small></span></a><span id="sync" class="pill">Saved</span></header>'+back+'<main>'+body+'</main>'+foot+
-    '<button class="fab" data-act="v-open">'+MIC+'Quick add</button>'+viewVoice();
+    '<button class="fab" data-act="v-open">'+MIC+'Quick add</button>'+viewVoice()+'<input type="file" id="imp-file" accept="application/json,.json" hidden>';
   setStatus();
   if(fid){var el=document.getElementById(fid);if(el){el.focus({preventScroll:true});if(sel&&el.setSelectionRange){try{el.setSelectionRange(sel[0],sel[1])}catch(e){}}}}
   var sh=app.querySelector('.sheet');if(sh&&scroll)sh.scrollTop=scroll;
@@ -896,6 +907,7 @@ function onBindInput(t){
 document.addEventListener('input',function(e){onBindInput(e.target)});
 document.addEventListener('change',function(e){
   var t=e.target;
+  if(t.id==='imp-file'){readImport(t.files&&t.files[0]);t.value='';return}
   if(t.getAttribute&&t.hasAttribute('data-b')){onBindInput(t);if(t.tagName==='SELECT')render();return}
   var sp=t.getAttribute&&t.getAttribute('data-sp');
   if(sp){
@@ -986,8 +998,76 @@ function exportCsv(){
   var body=rows.slice(1).sort(function(a,b){return a[1]<b[1]?-1:1});
   return [rows[0]].concat(body).map(function(r){return r.map(csvEsc).join(',')}).join('\n');
 }
+function plainDownload(name,data){
+  try{
+    var type=/\.csv$/.test(name)?'text/csv':'application/json';
+    var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type:type}));a.download=name;
+    document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(a.href)},5000);
+    toast('Saved '+name);
+  }catch(e){toast('Could not save the file')}
+}
+function hasAnyData(){return Object.keys(state.periods).some(function(k){return state.periods[k].length})||Object.keys(state.ledger).some(function(k){return state.ledger[k].length})||S().timetable.length>0}
+function readImport(file){
+  if(!file)return;
+  var fr=new FileReader();
+  fr.onload=function(){
+    try{
+      var j=JSON.parse(fr.result);
+      if(!j||typeof j!=='object'||!j.settings||typeof j.periods!=='object'||typeof j.ledger!=='object')throw new Error('shape');
+      var nS=0,nE=0,dates=[];
+      Object.keys(j.periods).forEach(function(k){(j.periods[k]||[]).forEach(function(x){nS++;dates.push(x.date)})});
+      Object.keys(j.ledger).forEach(function(k){nE+=(j.ledger[k]||[]).length});
+      dates.sort();ui.imp={data:j,nS:nS,nE:nE,first:dates[0],last:dates[dates.length-1]};render();
+    }catch(e){toast('That file is not an ApexBucks backup')}
+  };
+  fr.onerror=function(){toast('Could not read that file')};
+  fr.readAsText(file);
+}
+function importPanel(){
+  var i=ui.imp;if(!i)return '';
+  return '<div class="card" style="margin-top:14px;background:var(--panel-2)"><h2>Backup found</h2><p class="note" style="font-size:14px">'+i.nS+' classes and '+i.nE+' money entries'+(i.first?', '+fmtDY(i.first)+' to '+fmtDY(i.last):'')+'.'+(hasAnyData()?' This replaces the numbers already on this device.':'')+'</p><div class="chips" style="margin-top:12px"><button class="btn primary" data-act="imp-go">Use this backup</button><button class="btn" data-act="imp-cancel">Cancel</button></div></div>';
+}
+function welcomeCard(){
+  if(store.mode!=='local'||(hasAnyData()&&!ui.imp))return '';
+  return '<div class="card" style="margin-bottom:18px;max-width:1000px"><h2>Welcome to ApexBucks</h2>'+(ui.imp?'':'<p class="note" style="font-size:14px">Your numbers are saved on this phone. To bring across your classes, pay and savings from the earlier version, download its full backup (Setup, Your data), then choose that file here.</p><div class="chips" style="margin-top:12px"><button class="btn primary" data-act="imp-pick">Choose backup file</button></div>')+importPanel()+'</div>';
+}
+function installCard(){
+  if(!HOSTED)return '<div class="card"><h2>Put it on your phone <small>Home screen shortcut</small></h2><div class="note" style="display:flex;flex-direction:column;gap:10px"><p><b style="color:var(--text)">Android (Chrome)</b><br>Open this page in Chrome while signed in to Claude. Tap the three dots, then Add to Home screen (or Install app), then Add.</p><p><b style="color:var(--text)">iPhone (Safari)</b><br>Open this page in Safari. Tap Share, then Add to Home Screen, then Add.</p><p>It then opens from your home screen like an app. Your numbers are saved to your account, so your phone and laptop always match. It needs an internet connection and your Claude sign-in. For Quick add, the microphone on your phone keyboard works well.</p></div></div>';
+  var inst=(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone;
+  if(inst)return '';
+  var ios=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  return '<div class="card"><h2>Install ApexBucks <small>Opens like an app</small></h2><div class="note" style="display:flex;flex-direction:column;gap:10px">'+(installEvt?'<p>Tap the button to put ApexBucks on your home screen.</p><div class="chips"><button class="btn primary" data-act="install">Install ApexBucks</button></div>':(ios?'<p>In Safari tap Share, then Add to Home Screen, then Add.</p>':'<p>In Chrome tap the three dots, then Install app (or Add to Home screen), then Install.</p>'))+'<p>It also works without internet. Your numbers are saved on this phone only, so download a backup now and then.</p></div></div>';
+}
+function webSpeechShim(){
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR)return null;
+  var rec=null,pl=[],fl=[],sl=[];
+  return{
+    start:function(){return new Promise(function(res,rej){
+      try{
+        rec=new SR();rec.lang='en-ZA';rec.interimResults=true;rec.continuous=true;
+        rec.onresult=function(e){var fin='',par='';for(var i=e.resultIndex;i<e.results.length;i++){var r=e.results[i];if(r.isFinal)fin+=r[0].transcript;else par+=r[0].transcript}if(par)pl.forEach(function(f){f({text:par})});if(fin)fl.forEach(function(f){f({text:fin})})};
+        rec.onstart=function(){sl.forEach(function(f){f({state:'listening'})});res()};
+        rec.onerror=function(e){rej({code:e.error==='not-allowed'?'not_granted':'unavailable'})};
+        rec.onend=function(){sl.forEach(function(f){f({state:'idle',reason:'stopped'})})};
+        rec.start();
+      }catch(err){rej({code:'unavailable'})}
+    })},
+    stop:function(){return new Promise(function(res){if(rec){try{rec.stop()}catch(e){}}res()})},
+    onPartial:function(f){pl.push(f)},onFinal:function(f){fl.push(f)},onState:function(f){sl.push(f)}
+  };
+}
+function setupHosted(){
+  try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}
+  try{
+    if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1')){
+      navigator.serviceWorker.register('sw.js').then(function(reg){swReg=reg}).catch(function(){});
+      var reloading=false;
+      navigator.serviceWorker.addEventListener('controllerchange',function(){if(reloading||!ui.swUpdating)return;reloading=true;location.reload()});
+    }
+  }catch(e){}
+}
 async function save(name,data){
-  if(!caps.dl){toast('Downloads are not available in this view');return}
+  if(!caps.dl){plainDownload(name,data);return}
   try{await caps.dl.save({filename:name,data:data});toast('Saved '+name)}catch(e){if(!e||e.code!=='declined')toast('Could not save the file')}
 }
 function invoiceText(){
@@ -1017,6 +1097,10 @@ document.addEventListener('click',function(e){
       else if(sc==='be'){ui.beMonth=d===0?mkOf(today):addMonths(ui.beMonth,d);ui.beYear=mkParse(ui.beMonth).y;ui.slipOpen=false}
       render();break}
     case 'refresh':refreshData();break;
+    case 'imp-pick':{var fi=document.getElementById('imp-file');if(fi)fi.click();break}
+    case 'imp-cancel':ui.imp=null;render();break;
+    case 'imp-go':{var bj=ui.imp&&ui.imp.data;if(!bj)break;applySettings(clone(bj.settings));state.periods=clone(bj.periods);state.ledger=clone(bj.ledger);ui.imp=null;ui.month=mkOf(today);ui.vaMonth=payMonthOf(today);ui.moneyMonth=mkOf(today);ui.beMonth=mkOf(today);dataVer++;markDirty('settings/main');toast('Backup restored');render();break}
+    case 'install':if(installEvt){installEvt.prompt();installEvt.userChoice.then(function(){installEvt=null;render()})}break;
     case 'tile':ui.vaMonth=ui.month;ui.moneyMonth=ui.month;ui.beMonth=ui.month;ui.beYear=mkParse(ui.month).y;ui.slipOpen=false;ui.fill=null;if(!ui.money.id)resetMoney(ui.money.kind);if(!ui.va.id)resetVa(ui.va);break;
     case 'fc-year':{var ny=mkParse(ui.month).y+(+t.getAttribute('data-dir'));if(ny<2026)break;ui.month=addMonths(ui.month,12*(+t.getAttribute('data-dir')));render();break}
     case 'fc-pick':e.preventDefault();ui.month=t.getAttribute('data-m');render();setTimeout(function(){var b=document.getElementById('breakdown');if(b)b.scrollIntoView({behavior:'smooth',block:'start'})},60);break;
@@ -1158,20 +1242,24 @@ function commitVoice(){
 
 /* ================================================================ boot */
 (async function boot(){
+  window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();installEvt=e;render()});
+  window.addEventListener('appinstalled',function(){installEvt=null;toast('ApexBucks installed');render()});
+  window.addEventListener('pagehide',function(){if(!store.db&&dirty.size)saveLocal()});
   route();render();
   initStore();
   try{caps.dl=await window.claude.use('downloads')}catch(e){}
   try{caps.sample=await window.claude.use('sample')}catch(e){}
-  try{
-    var d=await window.claude.use('dictation');
-    if(d){
-      caps.dict=d;
-      d.onPartial(function(x){var el=document.getElementById('v-text');ui.voice.partial=x.text});
-      d.onFinal(function(x){appendText(x.text)});
-      d.onState(function(x){ui.voice.listening=(x.state==='listening'||x.state==='starting');render()});
-      render();
-    }
-  }catch(e){}
+  var d=null;
+  try{d=await window.claude.use('dictation')}catch(e){}
+  if(!d)d=webSpeechShim();
+  if(d){
+    caps.dict=d;
+    d.onPartial(function(x){ui.voice.partial=x.text});
+    d.onFinal(function(x){appendText(x.text)});
+    d.onState(function(x){ui.voice.listening=(x.state==='listening'||x.state==='starting');render()});
+    render();
+  }
+  if(HOSTED)setupHosted();
 })();
 })();
 </script>
