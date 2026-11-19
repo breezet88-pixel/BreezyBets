@@ -574,6 +574,21 @@ function loanWhatText(){
   var q=loanPlan(x),sooner=base.months-q.months,saved=r2(base.interest-q.interest);
   return 'Paying '+R(x)+' extra each month clears the loan in '+q.months+' month'+(q.months===1?'':'s')+' ('+monthLabel(addMonths(L.asOf,q.months))+') instead of '+base.months+' ('+monthLabel(addMonths(L.asOf,base.months))+'). '+(sooner>0?'That is '+sooner+' month'+(sooner===1?'':'s')+' sooner'+(saved>0?' and saves about '+R(saved)+' in interest':'')+'. ':'The finish month does not change. ')+'You would pay '+R(x)+' more a month out of your own pocket.';
 }
+/* Rent planner: a what-if only. It never touches the real numbers; rent becomes a real cost only when added in Setup. */
+function rentPlan(rent){
+  var r=+rent||0,start=mkOf(today),rows=[];
+  for(var i=0;i<12;i++){var m=addMonths(start,i),s=summary(m);rows.push({m:m,left:s.left,after:r2(s.left-r),takeHome:s.takeHome})}
+  var low=rows.reduce(function(a,b){return b.after<a.after?b:a});
+  return{rows:rows,avgNow:r2(sum(rows,function(x){return x.left})/rows.length),avg:r2(sum(rows,function(x){return x.after})/rows.length),avgTH:r2(sum(rows,function(x){return x.takeHome})/rows.length),low:low,short:rows.filter(function(x){return x.after<0}),pct:(function(){var t=r2(sum(rows,function(x){return x.takeHome})/rows.length);return t>0?Math.round(r/t*100):0})()};
+}
+function rentWhatText(){
+  var r=+ui.x.rent||0;
+  if(!(r>0))return 'Type a monthly rent to see what it would leave you.';
+  var p=rentPlan(r);
+  var t='At '+R(r)+' rent you would have about '+R(p.avg)+' a month free to spend after rent, savings and everything else \u2014 down from about '+R(p.avgNow)+' now with no rent. That is '+p.pct+'% of your take-home.';
+  t+=p.short.length?(' '+p.short.length+' month'+(p.short.length===1?'':'s')+' of the next year would come up short, the tightest being '+monthLabel(p.low.m)+' at '+R(p.low.after)+'.'):(' Every month of the next year still stays in the black, the tightest being '+monthLabel(p.low.m)+' at '+R(p.low.after)+'.');
+  return t;
+}
 function saveWhatText(){
   var sv=S().savings,g=sv.goal,target=+g.target||0,cur=+sv.monthly||0,x=+ui.x.save||0;
   if(!(x>0))return 'Try a different monthly amount to see what it changes.';
@@ -647,7 +662,7 @@ var ui={
   venue:'all',fill:null,armed:null,
   va:null,money:null,slip:null,slipOpen:false,
   nc:{name:'',venue:'',rate:230},ntt:{dow:1,classId:'',start:'06:00'},nrec:{label:'',category:'',amount:'',per:'month',pct:'',from:'',until:''},npre:{label:'',category:'',amount:''},nhol:{date:'',name:''},nleave:{from:'',to:'',label:''},week:'',wk:null,taxYear:2026,paste:{open:false,text:''},rc:newRc(),ot:null,fcYear:+today.slice(0,4),ncut:{mk:'',date:''},
-  x:{loan:'',save:''},
+  x:{loan:'',save:'',rent:'6000'},
   voice:{open:false,text:'',partial:'',listening:false,busy:false,items:null,error:'',via:''}
 };
 var caps={dict:null,sample:null,dl:null};
@@ -1295,7 +1310,10 @@ function viewMoney(){
   }).join('');
   var recRows=rec.map(function(r){return '<div class="mrow" style="grid-template-columns:62px minmax(0,1fr) auto"><div><span class="tag">Monthly</span></div><div style="min-width:0"><div>'+esc(r.label)+'</div><div class="note">'+esc(r.category||'Other')+(r.per==='week'?' · '+R(r.base)+' a week':'')+(r.actual?' · '+R(r.actual)+' logged so far':'')+(r.pct?' · '+r.pct+'% of B-Active':'')+'</div></div><div class="tnum out" style="font-weight:500">\u2212'+R(r.eff)+'</div></div>'}).join('');
   var list='<div class="card"><h2>'+monthLabel(mk)+' <small>'+(led.length+rec.length)+' entries</small></h2>'+((led.length||rec.length)?rows+recRows:'<div class="empty"><b>Nothing logged this month</b>Add an expense, or tap Quick add and say it out loud.</div>')+'<p class="note" style="margin-top:12px">Regular costs are managed in Setup.</p></div>';
-  return head+stats+'<div class="grid2"><div class="stack">'+form+'</div><div class="stack">'+list+'</div></div>';
+  var rentCard='<div class="card"><h2>Rent you\u2019re considering <small>Not a bill yet</small></h2>'+
+    '<p class="note">See what a monthly rent would leave you, without changing your real numbers. A common guideline is to keep rent under about a third of take-home. When you sign a lease, add it for real with the Rent or bond button in Setup.</p>'+
+    '<div class="what-if" style="border-top:0;padding-top:4px"><label class="lab" for="rent-try">Monthly rent (R)</label><div class="row2"><input id="rent-try" class="cell-in" type="number" inputmode="decimal" min="0" step="any" data-b="x.rent" value="'+esc(ui.x.rent)+'" placeholder="6000" style="max-width:190px">'+[5000,6000,7000].map(function(v){return '<button class="chip" type="button" data-act="x-set" data-k="rent" data-v="'+v+'">'+R(v)+'</button>'}).join('')+'</div><p class="note" id="rent-what" style="margin-top:8px">'+esc(rentWhatText())+'</p></div></div>';
+  return head+stats+'<div class="grid2"><div class="stack">'+form+rentCard+'</div><div class="stack">'+list+'</div></div>';
 }
 
 /* ---------- setup */
@@ -1419,6 +1437,7 @@ function onBindInput(t){
   if(/^ot\.(date|hours|rate|mult)$/.test(path))otPreview();
   if(path==='x.loan'){var el1=document.getElementById('loan-what');if(el1)el1.textContent=loanWhatText()}
   if(path==='x.save'){var el2=document.getElementById('save-what');if(el2)el2.textContent=saveWhatText()}
+  if(path==='x.rent'){var el3=document.getElementById('rent-what');if(el3)el3.textContent=rentWhatText()}
   if(path==='va.end')ui.va.endTouched=true;
   if(path==='va.rate')ui.va.rateTouched=true;
 }
