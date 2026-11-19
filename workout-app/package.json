@@ -1,0 +1,12 @@
+{
+  "name": "fitlibrary",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Read-only workout library PWA with a password-protected admin. Zero dependencies.",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server/start.js",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js"
+  }
+}
