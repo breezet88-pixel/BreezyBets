@@ -8,6 +8,9 @@ const tabs = document.getElementById('admin-tabs');
 const store = tokenStore(sessionStorage, 'fl.admin'); // signed out when the tab closes
 const api = makeApi(store);
 const STYLE_KEY = 'fl.imageStyle';
+// Replace the page content, skipping optional parts that are switched off (null/false).
+const show = (...nodes) => app.replaceChildren(...nodes.flat().filter((n) => n !== null && n !== undefined && n !== false));
+
 
 const DEFAULT_STYLE =
   'Clean flat vector illustration in a consistent style: one gender-neutral athlete with a plain face, dark grey fitted sportswear, ' +
@@ -46,7 +49,7 @@ function loginView() {
   const msg = h('p', { class: 'err', role: 'alert' });
   const username = h('input', { type: 'text', autocomplete: 'username', autocapitalize: 'none', spellcheck: 'false', required: true });
   const pw = h('input', { type: 'password', autocomplete: 'current-password', required: true });
-  app.replaceChildren(h('form', { class: 'panel', onsubmit: async (e) => {
+  show(h('form', { class: 'panel', onsubmit: async (e) => {
     e.preventDefault();
     try {
       const r = await api('/api/auth/login', { method: 'POST', body: { login: username.value, password: pw.value } });
@@ -70,7 +73,7 @@ async function workoutsView() {
   const [{ workouts }, { today, schedule }] = await Promise.all([api('/api/admin/workouts'), api('/api/admin/wod')]);
   const todays = schedule.find((s) => s.day === today);
   const status = h('p', { role: 'status', class: 'muted' });
-  app.replaceChildren(
+  show(
     h('div', { class: 'list-item' }, h('h1', {}, 'Workouts'), h('a', { class: 'btn', href: '#/workouts/new' }, '+ New workout')),
     todays ? h('p', { class: 'muted' }, `Today’s workout of the day: ${todays.title}${todays.published ? '' : ' (still a draft, so members cannot see it)'}`) : h('p', { class: 'muted' }, 'No workout of the day set for today.'),
     status,
@@ -161,7 +164,7 @@ function editView(w) {
   };
 
   drawExercises();
-  app.replaceChildren(
+  show(
     h('a', { class: 'back', href: '#/workouts' }, '← All workouts'),
     h('div', { class: 'panel' },
       h('div', { class: 'row' },
@@ -186,7 +189,7 @@ async function wodView() {
   const status = h('p', { role: 'status', class: 'muted' });
   const day = h('input', { type: 'date', value: today, required: true });
   const pick = h('select', {}, workouts.map((w) => h('option', { value: w.id }, `${w.title}${w.published ? '' : ' (draft)'}`)));
-  app.replaceChildren(
+  show(
     h('h1', {}, 'Workout of the day'),
     h('p', { class: 'muted' }, 'Members can download only the workout set for today’s date. Pick a day and a workout. Setting a day that already has one replaces it.'),
     h('form', { class: 'panel', onsubmit: async (e) => {
@@ -207,7 +210,7 @@ async function wodView() {
 // ---------- reviews & comments ----------
 async function feedbackView() {
   const { feedback } = await api('/api/admin/feedback');
-  app.replaceChildren(
+  show(
     h('h1', {}, 'Reviews & comments'),
     h('p', { class: 'muted' }, 'Newest first. Delete anything you do not want shown.'),
     h('div', { class: 'panel' }, feedback.length
@@ -223,7 +226,7 @@ async function customersView() {
   const { users } = await api('/api/admin/users');
   const status = h('p', { role: 'status', class: 'muted' });
   const act = (fn) => async () => { try { await fn(); await customersView(); } catch (e) { say(status, e.message, true); } };
-  app.replaceChildren(
+  show(
     h('h1', {}, 'Customers'),
     h('p', { class: 'muted' }, 'Block someone to sign them out and stop them posting. Delete removes their account and all their reviews.'),
     status,
@@ -243,7 +246,7 @@ async function donationsView() {
   const amountUrl = h('input', { type: 'url', value: d.amount_url, placeholder: 'https://…?amount={amount}  (optional)', maxlength: 500 });
   const amounts = h('input', { type: 'text', value: d.amounts.join(', '), placeholder: '20, 50, 100, 200', inputmode: 'numeric' });
   const message = h('textarea', { maxlength: 400, value: d.message, placeholder: 'FitLibrary is free. If it helps you, chip in so I can keep adding workouts.' });
-  app.replaceChildren(
+  show(
     h('h1', {}, 'Donations'),
     h('p', {}, 'FitLibrary is free for everyone. Donations are optional and never unlock anything. Create a payment or donation link with your payment provider (money goes straight to your bank account), then paste it here. Members pay on the provider’s own page, so this app never touches their card or bank details.'),
     h('form', { class: 'panel', onsubmit: async (e) => {
@@ -283,7 +286,7 @@ async function route() {
     else await workoutsView();
   } catch (e) {
     if (e.status === 401 || e.status === 403) { store.clear(); return loginView(); }
-    app.replaceChildren(h('p', { class: 'err pad' }, e.message));
+    show(h('p', { class: 'err pad' }, e.message));
   }
 }
 

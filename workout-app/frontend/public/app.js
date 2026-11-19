@@ -11,6 +11,9 @@ const SAVED_KEY = 'fl.wod';
 const IMG_CACHE = 'fl-saved-v1';
 
 let me = null; // signed-in user, or null
+// Replace the page content, skipping optional parts that are switched off (null/false).
+const show = (...nodes) => app.replaceChildren(...nodes.flat().filter((n) => n !== null && n !== undefined && n !== false));
+
 let donate = null; // coach's donation settings, or null
 let flash = ''; // one-time message shown on the next sign-in page
 let verificationRequired = false; // does the server want customers to confirm their email first?
@@ -144,13 +147,13 @@ async function todayView() {
   }
   setBanner(offline ? 'You are offline. Showing the workout you saved on this device.' : '');
   if (!w) {
-    app.replaceChildren(h('h1', {}, 'Today’s workout'),
+    show(h('h1', {}, 'Today’s workout'),
       h('p', { class: 'muted' }, offline ? 'Nothing saved on this device yet.' : 'The coach has not posted today’s workout yet. Check back soon, or browse all workouts.'),
       h('a', { class: 'btn ghost', href: '#/workouts' }, 'Browse workouts'));
     return;
   }
   const cover = w.exercises.find((e) => e.image)?.image;
-  app.replaceChildren(
+  show(
     h('p', { class: 'eyebrow' }, `Workout of the day · ${day}`),
     h('h1', {}, w.title),
     h('p', { class: 'muted' }, [w.category, meta(w), ratingLine(w)].filter(Boolean).join(' · ')),
@@ -187,13 +190,13 @@ function supportView() {
   setTab('');
   setBanner('');
   if (!donate?.enabled) {
-    app.replaceChildren(h('h1', {}, 'FitLibrary is free'), h('p', {}, 'Everything here is free to use. Thank you for training with us.'), h('a', { class: 'btn ghost', href: '#/' }, 'Back to today’s workout'));
+    show(h('h1', {}, 'FitLibrary is free'), h('p', {}, 'Everything here is free to use. Thank you for training with us.'), h('a', { class: 'btn ghost', href: '#/' }, 'Back to today’s workout'));
     return;
   }
   const out = { target: '_blank', rel: 'noopener noreferrer' };
   const host = new URL(donate.url).hostname;
   const presets = donate.amount_url ? donate.amounts.map((n) => h('a', { class: 'btn', href: donate.amount_url.split('{amount}').join(String(n)), ...out }, `R${n}`)) : [];
-  app.replaceChildren(
+  show(
     h('h1', {}, 'Support the coach'),
     h('p', {}, h('strong', {}, 'FitLibrary is free to use. ')), 
     donate.message ? h('p', {}, donate.message) : h('p', {}, 'If these workouts help you, you can say thanks with a donation of any size. It is completely optional and does not unlock anything.'),
@@ -210,7 +213,7 @@ async function listView() {
   try { workouts = (await api('/api/workouts')).workouts; }
   catch (e) {
     if (!e.offline) throw e;
-    app.replaceChildren(h('p', { class: 'pad' }, 'You are offline. Open the Today tab to see the workout you saved.'));
+    show(h('p', { class: 'pad' }, 'You are offline. Open the Today tab to see the workout you saved.'));
     return;
   }
   let query = '';
@@ -224,7 +227,7 @@ async function listView() {
     grid.replaceChildren(...(shown.length ? shown.map(card) : [h('p', { class: 'muted pad' }, workouts.length ? 'No workouts match.' : 'No workouts yet. Check back soon.')]));
     chips.replaceChildren(...['', ...cats].map((c) => h('button', { class: `chip${c === cat ? ' on' : ''}`, 'aria-pressed': c === cat ? 'true' : 'false', onclick: () => { cat = c; draw(); } }, c || 'All')));
   };
-  app.replaceChildren(
+  show(
     h('h1', { class: 'sr-only' }, 'All workouts'),
     h('div', { class: 'toolbar' },
       h('input', { type: 'search', placeholder: 'Search workouts', 'aria-label': 'Search workouts', oninput: (e) => { query = e.target.value; draw(); } }),
@@ -264,7 +267,7 @@ async function detailView(id) {
   try {
     [{ workout: w }, wod] = await Promise.all([api(`/api/workouts/${id}`), api('/api/wod').catch(() => null)]);
   } catch (e) {
-    app.replaceChildren(h('p', { class: 'pad' }, e.status === 404 ? 'This workout is no longer available.' : e.message), h('a', { class: 'pad', href: '#/workouts' }, '← All workouts'));
+    show(h('p', { class: 'pad' }, e.status === 404 ? 'This workout is no longer available.' : e.message), h('a', { class: 'pad', href: '#/workouts' }, '← All workouts'));
     return;
   }
   const fb = await api(`/api/workouts/${id}/feedback`).catch(() => ({ feedback: [], you_rated: false }));
@@ -284,7 +287,7 @@ async function detailView(id) {
 
   function detailsRefresh() { detailView(id); }
 
-  app.replaceChildren(
+  show(
     h('a', { class: 'back', href: '#/workouts' }, '← All workouts'),
     h('article', { class: 'detail' },
       h('h1', {}, w.title),
@@ -301,7 +304,7 @@ function accountView(query) {
   setBanner('');
   const next = new URLSearchParams(query).get('next') || '/';
   if (me) {
-    app.replaceChildren(h('h1', {}, `Hi, ${me.name}`), h('p', { class: 'muted' }, me.email),
+    show(h('h1', {}, `Hi, ${me.name}`), h('p', { class: 'muted' }, me.email),
       needsVerify() ? verifyNotice() : null,
       me.role === 'admin' ? h('p', {}, h('a', { href: '/admin' }, 'Open the coach page →')) : null,
       h('button', { class: 'btn ghost', onclick: async () => { await api('/api/auth/logout', { method: 'POST', body: {} }).catch(() => {}); store.clear(); me = null; paintAccountTab(); go('#/'); } }, 'Sign out'));
@@ -340,7 +343,7 @@ function accountView(query) {
     status));
   };
   draw();
-  app.replaceChildren(notice, box);
+  show(notice, box);
 }
 
 function forgotView() {
@@ -348,7 +351,7 @@ function forgotView() {
   setBanner('');
   const email = h('input', { type: 'email', id: 'fe', autocomplete: 'email', required: true });
   const status = h('p', { role: 'status', class: 'muted' });
-  app.replaceChildren(h('form', { class: 'panel', onsubmit: async (e) => {
+  show(h('form', { class: 'panel', onsubmit: async (e) => {
     e.preventDefault();
     try {
       await api('/api/auth/forgot', { method: 'POST', body: { email: email.value } });
@@ -368,7 +371,7 @@ function resetView(query) {
   const token = new URLSearchParams(query).get('token') || '';
   const pw = h('input', { type: 'password', id: 'np', autocomplete: 'new-password', required: true, minlength: 8 });
   const status = h('p', { class: 'err', role: 'alert' });
-  app.replaceChildren(h('form', { class: 'panel', onsubmit: async (e) => {
+  show(h('form', { class: 'panel', onsubmit: async (e) => {
     e.preventDefault();
     try {
       await api('/api/auth/reset', { method: 'POST', body: { token, password: pw.value } });
@@ -389,14 +392,14 @@ async function verifyView(query) {
   setTab('account');
   setBanner('');
   const token = new URLSearchParams(query).get('token') || '';
-  app.replaceChildren(h('p', { class: 'pad' }, 'Confirming your email…'));
+  show(h('p', { class: 'pad' }, 'Confirming your email…'));
   try {
     await api('/api/auth/verify', { method: 'POST', body: { token } });
     if (store.get()) { try { me = (await api('/api/me')).user; } catch { /* signed out */ } }
-    app.replaceChildren(h('h1', {}, 'Email confirmed ✓'), h('p', {}, 'You can now leave reviews and download the workout of the day.'),
+    show(h('h1', {}, 'Email confirmed ✓'), h('p', {}, 'You can now leave reviews and download the workout of the day.'),
       h('a', { class: 'btn', href: me ? '#/' : '#/account' }, me ? 'Go to today’s workout' : 'Sign in'));
   } catch (e) {
-    app.replaceChildren(h('h1', {}, 'That link did not work'), h('p', {}, e.message), h('a', { class: 'btn ghost', href: '#/account' }, 'Sign in'));
+    show(h('h1', {}, 'That link did not work'), h('p', {}, e.message), h('a', { class: 'btn ghost', href: '#/account' }, 'Sign in'));
   }
 }
 
@@ -414,7 +417,7 @@ async function route() {
     else await todayView();
   } catch (e) {
     console.error(e);
-    app.replaceChildren(h('p', { class: 'pad' }, e.offline ? 'You are offline.' : 'Something went wrong. Please refresh.'));
+    show(h('p', { class: 'pad' }, e.offline ? 'You are offline.' : 'Something went wrong. Please refresh.'));
   }
   window.scrollTo(0, 0);
 }
