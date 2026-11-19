@@ -159,7 +159,7 @@ button.chip{cursor:pointer;color:var(--text)} button.chip:hover{border-color:var
 .row .when{font-variant-numeric:tabular-nums;color:var(--muted);font-size:14px}
 .row .what{min-width:0;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center}
 .row .amt{font-variant-numeric:tabular-nums;font-weight:500;text-align:right}
-.row .acts{display:flex;gap:4px}
+.row .acts{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;align-items:center}
 .row.flag .what::after{content:attr(data-flag);font-size:12px;color:var(--warn)}
 .mrow{display:grid;grid-template-columns:62px minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--line-soft)}
 .mrow:first-child{border-top:0}
@@ -205,6 +205,11 @@ a.brand{color:inherit;text-decoration:none}
 .combined .cb{padding:14px 0 16px;display:flex;flex-direction:column;gap:3px;min-width:0}
 .combined .cb+.cb{padding-left:24px;border-left:1px solid var(--line)}
 .combined .big-num{display:block;font-size:56px}
+.combined .cb+.cb.wide{grid-column:1/-1;border-left:0;padding-left:0;border-top:1px solid var(--line)}
+.combined .cb.wide .big-num{font-size:44px}
+.what-if{margin-top:14px;padding-top:14px;border-top:1px solid var(--line-soft)}
+.what-if .row2{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.what-if .row2 .cell-in{flex:1 1 100%;max-width:none!important}
 .combined .sub{font-size:13.5px;color:var(--muted);line-height:1.5}
 @media (max-width:720px){.combined .big-num{font-size:38px}.combined .cb+.cb{padding-left:14px}.combined .sub{font-size:12.5px}}
 .foot{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:36px;padding-top:18px;border-top:1px solid var(--line)}
@@ -261,6 +266,8 @@ a.brand{color:inherit;text-decoration:none}
   .stat:nth-child(3){border-left:0} .stat:nth-child(n+3){border-top:1px solid var(--line)}
   .row{grid-template-columns:72px minmax(0,1fr) auto}
   .row .acts{grid-column:2/-1}
+  .row .acts .btn.small{padding:4px 8px;min-height:32px;font-size:12.5px}
+  .row .acts .status{font-size:11.5px;padding:2px 7px}
   .mrow{grid-template-columns:52px minmax(0,1fr) auto}
   .mrow .acts{grid-column:2/-1;display:flex;gap:4px}
   .cls-row{grid-template-columns:44px minmax(0,1fr) 84px}
@@ -416,7 +423,7 @@ function applySettings(d){
   var def=defaultSettings();d=d||{};
   var s=Object.assign(def,d);
   s.be=Object.assign(defaultSettings().be,d.be||{});
-  s.be.loan=Object.assign({monthly:0,balance:0,asOf:''},(d.be&&d.be.loan)||{});
+  s.be.loan=Object.assign({monthly:0,balance:0,asOf:'',rate:''},(d.be&&d.be.loan)||{});
   s.be.legacy=s.be.legacy||{};s.be.unpaidDays=s.be.unpaidDays||{};s.be.payslips=s.be.payslips||{};if(!Array.isArray(s.be.overtime))s.be.overtime=[];
   s.tax=Object.assign({vaSetAside:true,vaPct:''},d.tax||{});
   ['classes','timetable','recurring','presets','extraHolidays','leave'].forEach(function(k){if(!Array.isArray(s[k]))s[k]=def[k]});
@@ -528,6 +535,9 @@ function sessionIndex(){
   return idx.map;
 }
 var sessionsFor=function(mk){return (sessionIndex()[mk]||[]).slice().sort(cmpSession)};
+/* A class can be ticked Taught or Cancelled. Cancelled classes stay in the list but are never counted. */
+var liveSessions=function(mk){return sessionsFor(mk).filter(function(s){return s.status!=='cancelled'})};
+var isUnconfirmed=function(s){return !s.status&&s.date<=today};
 var leaveOn=function(ds){return (S().leave||[]).filter(function(l){return ds>=l.from&&ds<=l.to})[0]||null};
 var ledgerFor=function(mk){return state.ledger[mk]||[]};
 /* Tax lines from before payslip figures start were estimates, so they are never counted. */
@@ -547,6 +557,33 @@ function loanFor(mk){
   var n=monthsBetween(L.asOf,mk);var remaining=r2(L.balance-L.monthly*(n-1));
   var pay=Math.max(0,Math.min(+L.monthly,remaining));
   return{pay:r2(pay),after:r2(Math.max(0,remaining-pay))};
+}
+/* What if you paid the loan off faster? Interest is only used when you type a rate in Setup. */
+function loanPlan(extra){
+  var L=S().be.loan,B=+L.balance||0,P=(+L.monthly||0)+(+extra||0),r=(+L.rate||0)/1200;
+  if(!(B>0)||!(P>0))return null;
+  var n=0,bal=B,paid=0;
+  while(bal>0.005&&n<600){var i=bal*r;if(P<=i+0.005)return{never:true};var pay=Math.min(P,bal+i);bal=bal+i-pay;paid+=pay;n++}
+  return{months:n,interest:r2(Math.max(0,paid-B))};
+}
+function loanWhatText(){
+  var L=S().be.loan,x=+ui.x.loan||0,base=loanPlan(0);
+  if(!base)return '';
+  if(base.never)return 'The monthly repayment does not cover the interest, so the loan would never clear. Check the rate in Setup.';
+  if(!(x>0))return 'Type an extra amount to see how much sooner the loan is cleared.';
+  var q=loanPlan(x),sooner=base.months-q.months,saved=r2(base.interest-q.interest);
+  return 'Paying '+R(x)+' extra each month clears the loan in '+q.months+' month'+(q.months===1?'':'s')+' ('+monthLabel(addMonths(L.asOf,q.months))+') instead of '+base.months+' ('+monthLabel(addMonths(L.asOf,base.months))+'). '+(sooner>0?'That is '+sooner+' month'+(sooner===1?'':'s')+' sooner'+(saved>0?' and saves about '+R(saved)+' in interest':'')+'. ':'The finish month does not change. ')+'You would pay '+R(x)+' more a month out of your own pocket.';
+}
+function saveWhatText(){
+  var sv=S().savings,g=sv.goal,target=+g.target||0,cur=+sv.monthly||0,x=+ui.x.save||0;
+  if(!(x>0))return 'Try a different monthly amount to see what it changes.';
+  if(target>0){
+    var remain=Math.max(target-savedTotal(),0);
+    if(remain<=0)return 'You have already reached this goal.';
+    var m=Math.ceil(remain/x),m0=cur>0?Math.ceil(remain/cur):0,diff=m0?m0-m:0;
+    return 'At '+R(x)+' a month you reach '+R(target)+' in about '+m+' month'+(m===1?'':'s')+', around '+monthLabel(addMonths(mkOf(today),m))+(diff>0?'. That is '+diff+' month'+(diff===1?'':'s')+' sooner than at '+R(cur):diff<0?'. That is '+(-diff)+' month'+(diff===-1?'':'s')+' later than at '+R(cur):'')+'.';
+  }
+  return 'At '+R(x)+' a month you would put away '+R(x*12)+' in a year. Add a target above to see when you would reach it.';
 }
 /* B-Active overtime shifts: hours x hourly rate x multiplier, paid with the pay month chosen */
 function hourlyRate(){var h=S().be.hourly;if(ownRate(h)&&+h>0)return +h;return r2((+S().be.basic||0)/(260/12*8))}
@@ -590,7 +627,7 @@ function allocate(recs,entries){
   return{recs:recs,loose:loose};
 }
 function summary(mk){
-  var ses=sessionsFor(mk),va=sum(ses,function(s){return +s.rate||0});
+  var ses=liveSessions(mk),va=sum(ses,function(s){return +s.rate||0});
   var vaEarned=sum(ses.filter(function(s){return s.date<=today}),function(s){return +s.rate||0});
   var be=beMonth(mk),led=ledgerFor(mk).filter(counted);
   var extra=sum(led.filter(function(e){return e.kind==='income'}),function(e){return +e.amount||0});
@@ -610,6 +647,7 @@ var ui={
   venue:'all',fill:null,armed:null,
   va:null,money:null,slip:null,slipOpen:false,
   nc:{name:'',venue:'',rate:230},ntt:{dow:1,classId:'',start:'06:00'},nrec:{label:'',category:'',amount:'',per:'month',pct:'',from:'',until:''},npre:{label:'',category:'',amount:''},nhol:{date:'',name:''},nleave:{from:'',to:'',label:''},week:'',wk:null,taxYear:2026,paste:{open:false,text:''},rc:newRc(),ot:null,fcYear:+today.slice(0,4),ncut:{mk:'',date:''},
+  x:{loan:'',save:''},
   voice:{open:false,text:'',partial:'',listening:false,busy:false,items:null,error:'',via:''}
 };
 var caps={dict:null,sample:null,dl:null};
@@ -696,10 +734,12 @@ function viewOverview(){
   var done=s.ses.filter(function(x){return x.date<=today}).length,togo=s.ses.length-done;
   var weekly=S().recurring.filter(function(r){return r.per==='week'&&mk>=r.from&&(!r.until||mk<=r.until)});
   var head='<div class="head"><div><h1>Overview</h1><p>'+(mk===mkOf(today)?'What you will have earned by the end of '+MONL[mkParse(mk).m-1]+'. ':'')+'Tap a square to open it.</p></div>'+stepper('overview',monthLabel(mk))+'</div>';
-  var band='<div class="combined"><div class="cb"><span class="lab">Combined gross by '+eom+'</span><span class="big-num in">'+R(s.gross)+'</span><span class="sub">Virgin Active '+R(s.va)+' + B-Active '+R(s.be.gross)+(s.extra?' + extra '+R(s.extra):'')+'</span></div><div class="cb"><span class="lab">Usable by '+eom+', after deductions and expenses</span><span class="big-num '+sgn(s.usable)+'">'+Rw(s.usable)+'</span><span class="sub">Less deductions '+Rw(s.deductions)+' and expenses '+Rw(s.spend)+'</span></div></div>';
+  var band='<div class="combined"><div class="cb"><span class="lab">Combined gross by '+eom+'</span><span class="big-num in">'+R(s.gross)+'</span><span class="sub">Virgin Active '+R(s.va)+' + B-Active '+R(s.be.gross)+(s.extra?' + extra '+R(s.extra):'')+'</span></div><div class="cb"><span class="lab">Usable by '+eom+', after deductions and expenses</span><span class="big-num '+sgn(s.usable)+'">'+Rw(s.usable)+'</span><span class="sub">Less deductions '+Rw(s.deductions)+' and expenses '+Rw(s.spend)+'</span></div>'+
+    (function(){var cur=mk===mkOf(today),dl=lastDay(mk)-(+today.slice(8,10))+1;
+      return '<div class="cb wide"><span class="lab">Free to spend by '+eom+', after savings</span><span class="big-num '+sgn(s.left)+'">'+Rw(s.left)+'</span><span class="sub">'+(s.left<0?'Over by '+Rw(-s.left)+'. ':(cur&&dl>0?'About '+Rw(s.left/dl)+' a day for the '+dl+' day'+(dl===1?'':'s')+' left. ':''))+'This is a forecast. Deductions, regular costs, expenses and savings are already taken off.</span></div>'})()+'</div>';
   var wk=weekData(mondayOf(today));
   var tiles='<div class="tiles">'+
-    tile('virgin-active','Virgin Active',Rw(s.va),(s.ses.length?'<b>'+done+'</b> class'+(done===1?'':'es')+' done'+(togo?' · '+togo+' to go':''):'No classes yet')+'<br>Paid '+fmtD(vp.date),'income')+
+    tile('virgin-active','Virgin Active',Rw(s.va),(s.ses.length?'<b>'+done+'</b> class'+(done===1?'':'es')+' done'+(togo?' · '+togo+' to go':''):'No classes yet')+'<br>'+(s.ses.filter(isUnconfirmed).length?'<b>'+s.ses.filter(isUnconfirmed).length+'</b> to confirm<br>':'')+'Paid '+fmtD(vp.date),'income')+
     tile('be-active','B-Active salary',s.be.has?Rw(s.be.net):'None','Paid '+fmtD(bp.date),'income')+
     tile('money','Expenses',Rw(s.spend),weekly.length?esc(weekly.map(function(r){return r.label}).join(', '))+' · '+R(sum(weekly,function(r){return +r.amount||0}))+' a week':'This month','out')+
     tile('week','This week',wk.recs.length?Rw(wk.left):'Set up',wk.recs.length?(wk.left<0?'Over by '+R(-wk.left)+' · allowance '+R(wk.budget):'left of '+R(wk.budget)+' · spent '+R(wk.spent)):'Add a weekly allowance in Setup',wk.recs.length&&wk.left<0?'out':'')+
@@ -737,13 +777,14 @@ function viewSavings(){
   var head='<div class="head"><div><h1>Savings</h1><p>Set an amount to put away each month, then tick it once the money has moved.</p></div></div>';
   var cm=ui.month,camt=savingsFor(cm);
   var now='<div class="card"><h2>'+monthLabel(cm)+' <small>'+R(camt)+' to save</small></h2>'+(camt>0?'<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><span class="note" style="font-size:15px">Have you put this month\'s savings away?</span>'+tickBtn(cm,savedDone(cm))+'</div>':'<p class="note">No saving is planned for this month.</p>')+'</div>';
-  var hero='<div class="hero"><div><span class="lab">Saved so far</span><span class="big-num">'+R(savedTotal())+'</span><span class="sub">Months you ticked as saved</span></div><div><span class="lab">Planned in '+yr+'</span><span class="mid">'+R(plan)+'</span><span class="sub">'+R(done)+' saved</span></div><div><span class="lab">Each month</span><span class="mid">'+R(sv.monthly)+'</span><span class="sub">From '+(sv.from?monthLabel(sv.from):'not set')+'</span></div></div>';
+  var hero='<div class="hero"><div><span class="lab">Saved so far</span><span class="big-num">'+R(savedTotal())+'</span><span class="sub">Months you ticked as saved</span></div><div><span class="lab">Planned in '+yr+'</span><span class="mid">'+R(plan)+'</span><span class="sub">'+R(done)+' saved</span></div><div><span class="lab">Each month</span><span class="mid">'+R(sv.monthly)+'</span><span class="sub">From '+(sv.from?monthLabel(sv.from):'not set')+(function(){var th=summary(mkOf(today)).takeHome;return (th>0&&+sv.monthly>0)?' · '+Math.round(sv.monthly/th*100)+'% of take-home':''})()+'</span></div></div>';
   var set='<div class="card"><h2>Monthly saving</h2><div class="form"><div class="fld"><label for="sv-m">Amount each month (R)</label><input id="sv-m" class="cell-in" type="number" inputmode="decimal" step="any" min="0" data-sp="savings.monthly" data-num="1" value="'+esc(sv.monthly)+'"></div><div class="fld"><label for="sv-f">Starting from</label><input id="sv-f" class="cell-in" type="month" data-sp="savings.from" value="'+esc(sv.from)+'"></div></div><p class="note" style="margin-top:10px">Savings come off your take-home before the leftover figure. Change one month below if you save a different amount.</p></div>';
   var list='<div class="card"><h2>'+yr+' <span style="display:flex;gap:6px"><button class="btn icon small" data-act="fc-year" data-dir="-1" aria-label="Previous year"'+(yr<=2026?' disabled':'')+'>&#8249;</button><button class="btn icon small" data-act="fc-year" data-dir="1" aria-label="Next year">&#8250;</button></span></h2>'+rows+'</div>';
   var g=sv.goal,have=(+g.opening||0)+(savedTotal()-(+g.opening||0)),target=+g.target||0,remain=Math.max(target-savedTotal(),0);
   var pc=target?Math.min(100,savedTotal()/target*100):0,mleft=(+sv.monthly>0&&remain>0)?Math.ceil(remain/sv.monthly):0;
   var goal='<div class="card"><h2>Savings goal'+(g.name?' <small>'+esc(g.name)+'</small>':'')+'</h2><div class="form"><div class="fld"><label for="sg-n">Goal name</label><input id="sg-n" class="cell-in" data-sp="savings.goal.name" value="'+esc(g.name)+'" placeholder="Emergency fund"></div><div class="fld"><label for="sg-t">Target (R)</label><input id="sg-t" class="cell-in" type="number" inputmode="decimal" step="any" min="0" data-sp="savings.goal.target" data-num="1" value="'+esc(g.target||'')+'"></div><div class="fld"><label for="sg-o">Already saved (R)</label><input id="sg-o" class="cell-in" type="number" inputmode="decimal" step="any" min="0" data-sp="savings.goal.opening" data-num="1" value="'+esc(g.opening||'')+'"></div></div>'+
-    (target?'<div class="bar" style="margin-top:14px"><div class="t"><span>'+R(savedTotal())+' of '+R(target)+'</span><span>'+Math.round(pc)+'%</span></div><div class="rail"><i style="width:'+pc+'%"></i></div></div><p class="note" style="margin-top:10px">'+(remain<=0?'You have reached this goal.':(mleft?'At '+R(sv.monthly)+' a month you reach it in about '+mleft+' month'+(mleft===1?'':'s')+', around '+monthLabel(addMonths(mkOf(today),mleft))+'.':'Set a monthly saving to see when you will get there.'))+'</p>':'<p class="note" style="margin-top:10px">Add a target and Already saved to see your progress and when you will get there.</p>')+'</div>';
+    (target?'<div class="bar" style="margin-top:14px"><div class="t"><span>'+R(savedTotal())+' of '+R(target)+'</span><span>'+Math.round(pc)+'%</span></div><div class="rail"><i style="width:'+pc+'%"></i></div></div><p class="note" style="margin-top:10px">'+(remain<=0?'You have reached this goal.':(mleft?'At '+R(sv.monthly)+' a month you reach it in about '+mleft+' month'+(mleft===1?'':'s')+', around '+monthLabel(addMonths(mkOf(today),mleft))+'.':'Set a monthly saving to see when you will get there.'))+'</p>':'<p class="note" style="margin-top:10px">Add a target and Already saved to see your progress and when you will get there.</p>')+
+    '<div class="what-if"><label class="lab" for="sg-try">What if I saved a different amount?</label><div class="row2"><input id="sg-try" class="cell-in" type="number" inputmode="decimal" min="0" step="any" data-b="x.save" value="'+esc(ui.x.save)+'" placeholder="Monthly amount (R)" style="max-width:190px">'+[2000,2500,3000].map(function(v){return '<button class="chip" type="button" data-act="x-set" data-k="save" data-v="'+v+'">'+R(v)+'</button>'}).join('')+'</div><p class="note" id="save-what" style="margin-top:8px">'+esc(saveWhatText())+'</p></div></div>';
   return head+hero+'<div class="grid2"><div class="stack">'+now+list+'</div><div class="stack">'+goal+set+'</div></div>';
 }
 
@@ -1110,13 +1151,14 @@ function viewVA(){
   var all=sessionsFor(mk);
   var venues=[];S().classes.forEach(function(c){if(c.venue&&venues.indexOf(c.venue)<0)venues.push(c.venue)});
   var ses=all.filter(function(s){return ui.venue==='all'||clsOf(s).venue===ui.venue});
-  var total=sum(all,function(s){return +s.rate||0}),earned=sum(all.filter(function(s){return s.date<=today}),function(s){return +s.rate||0});
-  var left=all.filter(function(s){return s.date>today}).length;
+  var live=all.filter(function(s){return s.status!=='cancelled'}),nCx=all.length-live.length,unc=all.filter(isUnconfirmed).length;
+  var total=sum(live,function(s){return +s.rate||0}),earned=sum(live.filter(function(s){return s.date<=today}),function(s){return +s.rate||0});
+  var left=live.filter(function(s){return s.date>today}).length;
   var f=ui.va,act=S().classes.filter(function(c){return c.active||c.id===f.classId});
   var lv=(S().leave||[]).filter(function(l){return l.from<=per.end&&l.to>=per.start});
   var lvBanner=lv.length?'<div class="note" style="margin-bottom:14px"><span class="tag" style="color:var(--warn);border-color:var(--warn-line)">On leave</span> '+lv.map(function(l){return fmtD(l.from)+' to '+fmtD(l.to)}).join(', ')+'. No classes are counted on these days.</div>':'';
   var head='<div class="head"><div><h1>Virgin Active</h1><p>Invoice '+fmtDY(per.start)+' to '+fmtDY(per.end)+' · paid '+fmtDY(vp.date)+paydayNote(vp)+'</p></div>'+stepper('va','Paid '+MON[mkParse(mk).m-1]+' '+mkParse(mk).y)+'</div>';
-  var stats='<div class="stats"><div class="stat"><b>'+all.length+'</b><span>Classes</span></div><div class="stat"><b>'+left+'</b><span>Still to teach</span></div><div class="stat"><b class="in">'+R(total)+'</b><span>This invoice</span></div><div class="stat"><b class="in">'+R(earned)+'</b><span>Done so far</span></div></div>';
+  var stats='<div class="stats"><div class="stat"><b>'+live.length+'</b><span>Classes'+(nCx?' · '+nCx+' cancelled':'')+'</span></div><div class="stat"><b>'+left+'</b><span>Still to teach</span></div><div class="stat"><b class="in">'+R(total)+'</b><span>This invoice</span></div><div class="stat"><b class="in">'+R(earned)+'</b><span>Done so far</span></div></div>';
   var form='<div class="card"><h2>'+(f.id?'Edit class':'Add a class')+'<small>Rate fills in from the class</small></h2><form class="form va-form" data-form="va">'+
     '<div class="fld"><label for="va-date">Date</label><input id="va-date" type="date" data-b="va.date" value="'+esc(f.date)+'" required></div>'+
     '<div class="fld span2"><label for="va-class">Class</label><select id="va-class" data-b="va.classId">'+act.map(function(c){return '<option value="'+esc(c.id)+'"'+(c.id===f.classId?' selected':'')+'>'+esc(c.name)+'</option>'}).join('')+'</select></div>'+
@@ -1143,16 +1185,21 @@ function viewVA(){
     ses.forEach(function(s){
       var c=clsOf(s);
       if(s.date!==cur){cur=s.date;var hn=holidayName(s.date);list+='<div class="day"><span>'+fmtD(s.date)+'</span><span style="font-size:12px;letter-spacing:.04em;color:var(--warn)">'+(hn?esc(hn):'')+'</span></div>'}
-      var arm=ui.armed==='s:'+s.id;
-      list+='<div class="row'+(s.note?' flag':'')+'"><div class="when">'+esc(s.start)+' to '+esc(s.end)+'</div><div class="what" data-flag="'+esc(s.note||'')+'">'+chip(c)+'</div><div class="amt in">'+(+s.rate?R(s.rate):'<span class="warn">R0</span>')+'</div><div class="acts"><button class="btn small ghost" data-act="va-edit" data-id="'+s.id+'">Edit</button><button class="btn small '+(arm?'danger':'ghost')+'" data-act="va-del" data-id="'+s.id+'">'+(arm?'Sure?':'Delete')+'</button></div></div>';
+      var arm=ui.armed==='s:'+s.id,cx=s.status==='cancelled';
+      var stb=cx?'<button class="btn small" data-act="va-st" data-id="'+s.id+'" data-st="">Restore</button>':
+        s.status==='taught'?'<span class="status paid">Taught</span><button class="btn small ghost" data-act="va-st" data-id="'+s.id+'" data-st="">Undo</button>':
+        s.date<=today?'<button class="btn small" data-act="va-st" data-id="'+s.id+'" data-st="taught">Taught</button><button class="btn small ghost" data-act="va-st" data-id="'+s.id+'" data-st="cancelled">Cancel</button>':
+        '<button class="btn small ghost" data-act="va-st" data-id="'+s.id+'" data-st="cancelled">Cancel</button>';
+      list+='<div class="row'+(s.note?' flag':'')+'"><div class="when">'+esc(s.start)+' to '+esc(s.end)+'</div><div class="what" data-flag="'+esc(s.note||'')+'">'+chip(c)+(cx?'<span class="tag">Cancelled</span>':'')+'</div><div class="amt '+(cx?'':'in')+'"'+(cx?' style="color:var(--faint);text-decoration:line-through"':'')+'>'+(+s.rate?R(s.rate):'<span class="warn">R0</span>')+'</div><div class="acts">'+stb+'<button class="btn small ghost" data-act="va-edit" data-id="'+s.id+'">Edit</button><button class="btn small '+(arm?'danger':'ghost')+'" data-act="va-del" data-id="'+s.id+'">'+(arm?'Sure?':'Delete')+'</button></div></div>';
     });
   }
-  var by={};all.forEach(function(s){var c=clsOf(s);var o=by[c.id]=by[c.id]||{c:c,n:0,t:0};o.n++;o.t+=+s.rate||0});
+  var by={};live.forEach(function(s){var c=clsOf(s);var o=by[c.id]=by[c.id]||{c:c,n:0,t:0};o.n++;o.t+=+s.rate||0});
   var byRows=Object.keys(by).map(function(k){return by[k]}).sort(function(a,b){return b.t-a.t});
-  var bytab='<div class="card"><h2>By class</h2>'+(byRows.length?'<div class="scroll"><table><tr><th>Class</th><th class="r">Classes</th><th class="r">Total</th></tr>'+byRows.map(function(o){return '<tr><td>'+chip(o.c)+'</td><td class="r">'+o.n+'</td><td class="r in">'+R(o.t)+'</td></tr>'}).join('')+'<tr><td><b>Total</b></td><td class="r"><b>'+all.length+'</b></td><td class="r in"><b>'+R(total)+'</b></td></tr></table></div>':'<p class="note">Totals appear once you add classes.</p>')+
+  var bytab='<div class="card"><h2>By class</h2>'+(byRows.length?'<div class="scroll"><table><tr><th>Class</th><th class="r">Classes</th><th class="r">Total</th></tr>'+byRows.map(function(o){return '<tr><td>'+chip(o.c)+'</td><td class="r">'+o.n+'</td><td class="r in">'+R(o.t)+'</td></tr>'}).join('')+'<tr><td><b>Total</b></td><td class="r"><b>'+live.length+'</b></td><td class="r in"><b>'+R(total)+'</b></td></tr></table></div>':'<p class="note">Totals appear once you add classes.</p>')+
     '<div class="chips" style="margin-top:14px"><button class="btn small" data-act="copy-invoice"'+(all.length?'':' disabled')+'>Copy invoice summary</button></div></div>';
   var vchips='<div class="chips" style="margin-bottom:12px"><button class="chip'+(ui.venue==='all'?' on':'')+'" data-act="venue" data-v="all">All venues</button>'+venues.map(function(v){return '<button class="chip'+(ui.venue===v?' on':'')+'" data-act="venue" data-v="'+esc(v)+'">'+esc(v)+'</button>'}).join('')+'</div>';
-  var listCard='<div class="card"><h2>Classes this invoice <small>'+fmtDs(per.start)+' to '+fmtDs(per.end)+'</small></h2>'+vchips+list+'</div>';
+  var confirmBar=unc?'<div class="note" style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:12px;padding:10px 12px;border:1px solid var(--line-strong);border-radius:10px;background:var(--panel-2);color:var(--text)"><span><b>'+unc+' class'+(unc===1?'':'es')+'</b> already happened and '+(unc===1?'is':'are')+' not confirmed. Tick the ones that were cancelled, then confirm the rest.</span><button class="btn small primary" data-act="va-confirm">Mark all as taught</button></div>':'';
+  var listCard='<div class="card"><h2>Classes this invoice <small>'+fmtDs(per.start)+' to '+fmtDs(per.end)+'</small></h2>'+confirmBar+vchips+list+'</div>';
   return head+lvBanner+stats+'<div class="grid2"><div class="stack">'+form+listCard+'</div><div class="stack"><div class="card"><h2>Weekly timetable</h2><p class="note">Your repeating week. One tap adds every class for the invoice period, skipping public holidays and your leave.</p><div class="chips" style="margin-top:12px">'+fillBtn+'</div></div>'+fillPanel+bytab+'</div></div>';
 }
 
@@ -1204,7 +1251,8 @@ function viewBE(){
   var L=b.loan,loanCard='';
   if(L&&+L.monthly&&+L.balance){
     var left=Math.ceil(L.balance/L.monthly);
-    loanCard='<div class="card"><h2>Employer loan</h2><div class="stats" style="margin:0;border:0;border-radius:0;background:none"><div class="stat" style="padding-left:0"><b>'+R(L.balance)+'</b><span>Balance after '+monthLabel(L.asOf)+'</span></div><div class="stat"><b class="out">'+R(L.monthly)+'</b><span>Per month</span></div></div><p class="note" style="margin-top:8px">At this pace the loan is cleared in about '+left+' month'+(left===1?'':'s')+' ('+monthLabel(addMonths(L.asOf,left))+'). Change the amounts in Setup.</p></div>';
+    loanCard='<div class="card"><h2>Employer loan</h2><div class="stats" style="margin:0;border:0;border-radius:0;background:none"><div class="stat" style="padding-left:0"><b>'+R(L.balance)+'</b><span>Balance after '+monthLabel(L.asOf)+'</span></div><div class="stat"><b class="out">'+R(L.monthly)+'</b><span>Per month</span></div></div><p class="note" style="margin-top:8px">At this pace the loan is cleared in about '+left+' month'+(left===1?'':'s')+' ('+monthLabel(addMonths(L.asOf,left))+'). Change the amounts in Setup.</p>'+
+      '<div class="what-if"><label class="lab" for="lx">What if I paid extra each month?</label><div class="row2"><input id="lx" class="cell-in" type="number" inputmode="decimal" min="0" step="any" data-b="x.loan" value="'+esc(ui.x.loan)+'" placeholder="Extra a month (R)" style="max-width:190px">'+[500,1000,2000].map(function(v){return '<button class="chip" type="button" data-act="x-set" data-k="loan" data-v="'+v+'">+'+R(v)+'</button>'}).join('')+'</div><p class="note" id="loan-what" style="margin-top:8px">'+esc(loanWhatText())+'</p></div></div>';
   }
   var yr=ui.beYear,mons=[];for(var i=1;i<=12;i++)mons.push(yr+'-'+pad(i));
   var tg=0,tn=0;
@@ -1274,13 +1322,15 @@ function viewSetup(){
     '<div class="fld"><label for="s-from">Payslip figures start</label><input id="s-from" class="cell-in" type="month" data-sp="be.from" value="'+esc(b.from)+'"></div>'+
     '<div class="fld"><label for="s-lm">Loan repayment a month (R)</label>'+setupInput('be.loan.monthly',b.loan.monthly,{num:1}).replace('<input','<input id="s-lm"')+'</div>'+
     '<div class="fld"><label for="s-lb">Loan balance (R)</label>'+setupInput('be.loan.balance',b.loan.balance,{num:1}).replace('<input','<input id="s-lb"')+'</div>'+
+    '<div class="fld"><label for="s-lr">Loan interest % a year (blank if none)</label>'+setupInput('be.loan.rate',b.loan.rate||'',{num:1}).replace('<input','<input id="s-lr"')+'</div>'+
     '<div class="fld"><label for="s-la">Balance is after month</label><input id="s-la" class="cell-in" type="month" data-sp="be.loan.asOf" value="'+esc(b.loan.asOf)+'"></div>'+
     '<div class="fld wide"><label style="display:flex;gap:10px;align-items:center;text-transform:none;letter-spacing:0;font-size:14px;color:var(--text)"><input type="checkbox" data-sp="tax.vaSetAside" '+(st.tax.vaSetAside?'checked':'')+'> Set tax aside on Virgin Active income</label><span class="note">Virgin Active does not take tax off. This sets aside a rate of that income so it is not spent. Leave the rate blank to use your payslip rate. It is a planning figure, not tax advice.</span></div>'+
     '<div class="fld"><label for="s-vat">Tax rate on Virgin Active % (blank uses your payslip)</label>'+setupInput('tax.vaPct',st.tax.vaPct,{num:1,ph:fmtPct(payeRate()).replace('%','')}).replace('<input','<input id="s-vat"')+'</div>'+
     '</div></div>';
   var rec='<div class="card"><h2>Regular costs <small>Added to every month</small></h2>'+
     (st.recurring.length?st.recurring.map(function(r){var base='recurring#'+r.id,arm=ui.armed==='r:'+r.id;return '<div class="rec-row">'+setupInput(base+'.label',r.label,{label:'Name'})+setupInput(base+'.category',r.category,{label:'Category'})+setupInput(base+'.amount',r.amount,{num:1,label:'Amount',ph:'R'})+'<select class="cell-in" data-sp="'+base+'.per" aria-label="Per"><option value="month"'+(r.per==='week'?'':' selected')+'>a month</option><option value="week"'+(r.per==='week'?' selected':'')+'>a week</option></select>'+'<input class="cell-in" type="month" data-sp="'+base+'.from" value="'+esc(r.from)+'" aria-label="From month"><input class="cell-in" type="month" data-sp="'+base+'.until" value="'+esc(r.until||'')+'" aria-label="Until month"><label class="catch" title="Counts every logged expense that has no item of its own"><input type="checkbox" data-sp="'+base+'.catchAll" '+(r.catchAll?'checked':'')+' aria-label="Everything else"> Else</label><button class="btn small '+(arm?'danger':'ghost')+'" data-act="rec-del" data-id="'+r.id+'">'+(arm?'Sure?':'Remove')+'</button></div>'}).join(''):'<div class="empty">No monthly bills yet.</div>')+
-    '<form class="form" data-form="nrec" style="margin-top:14px"><div class="fld"><label for="nr-l">Name</label><input id="nr-l" data-b="nrec.label" value="'+esc(ui.nrec.label)+'" placeholder="Cell C" required></div><div class="fld"><label for="nr-c">Category</label><input id="nr-c" list="cats" data-b="nrec.category" value="'+esc(ui.nrec.category)+'" placeholder="Phone"></div><div class="fld"><label for="nr-a">Amount (R)</label><input id="nr-a" type="number" step="any" data-b="nrec.amount" value="'+esc(ui.nrec.amount)+'" required></div><div class="fld"><label for="nr-p">Per</label><select id="nr-p" data-b="nrec.per"><option value="month"'+(ui.nrec.per==='week'?'':' selected')+'>Month</option><option value="week"'+(ui.nrec.per==='week'?' selected':'')+'>Week</option></select></div><div class="fld"><label for="nr-f">From month</label><input id="nr-f" type="month" data-b="nrec.from" value="'+esc(ui.nrec.from||mkOf(today))+'" required></div><div class="actions"><button class="btn" type="submit">Add regular cost</button></div></form>'+
+    '<div class="chips" style="margin-top:14px"><button class="chip" type="button" data-act="nrec-fill" data-l="Rent or bond" data-c="Housing">+ Rent or bond</button></div>'+
+    '<form class="form" data-form="nrec" style="margin-top:10px"><div class="fld"><label for="nr-l">Name</label><input id="nr-l" data-b="nrec.label" value="'+esc(ui.nrec.label)+'" placeholder="Cell C" required></div><div class="fld"><label for="nr-c">Category</label><input id="nr-c" list="cats" data-b="nrec.category" value="'+esc(ui.nrec.category)+'" placeholder="Phone"></div><div class="fld"><label for="nr-a">Amount (R)</label><input id="nr-a" type="number" step="any" data-b="nrec.amount" value="'+esc(ui.nrec.amount)+'" required></div><div class="fld"><label for="nr-p">Per</label><select id="nr-p" data-b="nrec.per"><option value="month"'+(ui.nrec.per==='week'?'':' selected')+'>Month</option><option value="week"'+(ui.nrec.per==='week'?' selected':'')+'>Week</option></select></div><div class="fld"><label for="nr-f">From month</label><input id="nr-f" type="month" data-b="nrec.from" value="'+esc(ui.nrec.from||mkOf(today))+'" required></div><div class="actions"><button class="btn" type="submit">Add regular cost</button></div></form>'+
     '<p class="note" style="margin-top:10px">From and until are the first and last month it applies. Leave until empty to keep it going. A weekly cost is multiplied by the days in the month over 7. Spending you log in an item\'s category counts against it, so it is not added twice. Tick Else on one item, such as Incidentals, to let it also cover everything you log that has no item of its own. Loan and tax are not here: they come off your payslip and the tax set-aside.</p></div>';
   var pre='<div class="card"><h2>Expense options <small>Quick buttons on the Money tab</small></h2>'+
     st.presets.map(function(p){var base='presets#'+p.id,arm=ui.armed==='p:'+p.id;return '<div class="pre-row">'+setupInput(base+'.label',p.label,{label:'Name'})+setupInput(base+'.category',p.category,{label:'Category'})+setupInput(base+'.amount',p.amount,{num:1,label:'Usual amount',ph:'Usual R'})+'<button class="btn small '+(arm?'danger':'ghost')+'" data-act="pre-del" data-id="'+p.id+'">'+(arm?'Sure?':'Remove')+'</button></div>'}).join('')+
@@ -1367,6 +1417,8 @@ function onBindInput(t){
   if(path==='ot.date'&&val&&!ui.ot.paidTouched){ui.ot.paidIn=otPaidIn(val);var po=document.getElementById('ot-paid');if(po)po.value=ui.ot.paidIn}
   if(path==='ot.paidIn')ui.ot.paidTouched=true;
   if(/^ot\.(date|hours|rate|mult)$/.test(path))otPreview();
+  if(path==='x.loan'){var el1=document.getElementById('loan-what');if(el1)el1.textContent=loanWhatText()}
+  if(path==='x.save'){var el2=document.getElementById('save-what');if(el2)el2.textContent=saveWhatText()}
   if(path==='va.end')ui.va.endTouched=true;
   if(path==='va.rate')ui.va.rateTouched=true;
 }
@@ -1424,7 +1476,7 @@ function submitVa(){
   var c=classById(f.classId);
   var s={id:f.id||uid(),date:f.date,classId:f.classId,label:c?c.name:'',start:f.start,end:f.end,rate:+f.rate||0};
   if(leaveOn(s.date))s.note='You are on leave this day.';
-  if(f.id){var old=findSession(f.id);if(old&&old.s.note&&old.s.date===s.date)s.note=old.s.note;removeSession(f.id)}
+  if(f.id){var old=findSession(f.id);if(old&&old.s.note&&old.s.date===s.date)s.note=old.s.note;if(old&&old.s.status&&old.s.date===s.date)s.status=old.s.status;removeSession(f.id)}
   addSession(s);
   var pm=payMonthOf(s.date);
   toast((f.id?'Saved ':'Added ')+s.label+' · '+fmtD(s.date));
@@ -1474,9 +1526,9 @@ function buildFill(past){
 }
 function csvEsc(v){v=String(v==null?'':v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
 function exportCsv(){
-  var rows=[['Type','Date','Item','Category','Start','End','Amount']];
-  Object.keys(state.periods).forEach(function(k){state.periods[k].forEach(function(s){rows.push(['Class',s.date,s.label,'Virgin Active',s.start,s.end,s.rate])})});
-  Object.keys(state.ledger).forEach(function(k){state.ledger[k].forEach(function(e){rows.push([e.kind==='income'?'Income':(isEstimate(e)?'Estimate (not counted)':'Expense'),e.date,e.label,e.category,'','',e.amount])})});
+  var rows=[['Type','Date','Item','Category','Start','End','Amount','Status']];
+  Object.keys(state.periods).forEach(function(k){state.periods[k].forEach(function(s){rows.push(['Class',s.date,s.label,'Virgin Active',s.start,s.end,s.status==='cancelled'?0:s.rate,s.status==='cancelled'?'Cancelled':(s.status==='taught'?'Taught':'Planned')])})});
+  Object.keys(state.ledger).forEach(function(k){state.ledger[k].forEach(function(e){rows.push([e.kind==='income'?'Income':(isEstimate(e)?'Estimate (not counted)':'Expense'),e.date,e.label,e.category,'','',e.amount,''])})});
   var body=rows.slice(1).sort(function(a,b){return a[1]<b[1]?-1:1});
   return [rows[0]].concat(body).map(function(r){return r.map(csvEsc).join(',')}).join('\n');
 }
@@ -1559,7 +1611,7 @@ async function save(name,data){
   try{await caps.dl.save({filename:name,data:data});toast('Saved '+name)}catch(e){if(!e||e.code!=='declined')toast('Could not save the file')}
 }
 function invoiceText(){
-  var mk=ui.vaMonth,per=period(mk),ses=sessionsFor(mk);
+  var mk=ui.vaMonth,per=period(mk),ses=liveSessions(mk);
   var lines=['Virgin Active invoice: '+fmtDY(per.start)+' to '+fmtDY(per.end),''];
   ses.forEach(function(s){lines.push(fmtD(s.date)+'  '+s.start+'-'+s.end+'  '+clsOf(s).name+'  '+R(s.rate))});
   lines.push('','Total: '+R(sum(ses,function(s){return +s.rate||0}))+' for '+ses.length+' classes');
@@ -1617,6 +1669,10 @@ document.addEventListener('click',function(e){
     case 'venue':ui.venue=t.getAttribute('data-v');render();break;
     case 'va-edit':{var f=findSession(id);if(!f)break;ui.vaMonth=payMonthOf(f.s.date);ui.va={id:id,date:f.s.date,classId:f.s.classId,start:f.s.start,end:f.s.end,rate:f.s.rate,endTouched:true,rateTouched:true,error:''};render();window.scrollTo({top:0,behavior:'smooth'});break}
     case 'va-cancel':resetVa();render();break;
+    case 'x-set':ui.x[t.getAttribute('data-k')]=t.getAttribute('data-v');render();break;
+    case 'nrec-fill':ui.nrec.label=t.getAttribute('data-l');ui.nrec.category=t.getAttribute('data-c');ui.nrec.per='month';render();setTimeout(function(){var a=document.getElementById('nr-a');if(a){a.scrollIntoView({block:'center'});a.focus()}},40);break;
+    case 'va-st':{var fs=findSession(id);if(!fs)break;var ns=t.getAttribute('data-st');if(ns)fs.s.status=ns;else delete fs.s.status;markDirty('periods/'+fs.k);toast(ns==='cancelled'?'Cancelled. It is no longer counted.':ns==='taught'?'Marked as taught.':'Back to planned.');render();break}
+    case 'va-confirm':{var cn=0,ck={};sessionsFor(ui.vaMonth).forEach(function(x){if(isUnconfirmed(x)){var q=findSession(x.id);if(q){q.s.status='taught';ck[q.k]=1;cn++}}});Object.keys(ck).forEach(function(k){markDirty('periods/'+k)});toast(cn?cn+' class'+(cn===1?'':'es')+' marked as taught':'Nothing to confirm');render();break}
     case 'va-del':if(arm('s:'+id)){removeSession(id);if(ui.va.id===id)resetVa();toast('Class removed');render()}break;
     case 'fill-open':ui.fill=buildFill();render();break;
     case 'fill-close':ui.fill=null;render();break;
