@@ -19,6 +19,11 @@ Open the site on a phone and choose Install app or Add to Home Screen. It then w
 
 - B-Active overtime shifts (hours x hourly rate x multiplier) are added to the pay month they are paid with.
 - Tax is worked out from the payslip (PAYE and UIF divided by gross pay), never from built-in tax tables.
+- Virgin Active classes can be ticked **Taught** or **Cancelled**. Cancelled classes stay in the list, struck through, but are
+  not counted anywhere (invoice, forecast, tax set-aside). Past classes that are not ticked show a one-tap **Mark all as taught**.
+- Overview shows **Free to spend**: what is left after deductions, regular costs, expenses and savings, as a rough amount a day.
+- B-Active has an extra-loan-payment what-if (interest is only used if a yearly rate is typed in Setup); Savings has a
+  what-if for a different monthly amount, plus the savings rate as a share of take-home.
 - Colour rule: light grey background, green for money coming in, red for money going out, black for buttons and neutral figures
   (savings, allowances left, counts). Red and green are not used for anything else, so class colours avoid them.
 - Data is saved on the device only (browser storage). Use Setup, Your data, Download full backup now and then.
