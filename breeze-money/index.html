@@ -1,20 +1,23 @@
 <title>ApexBucks</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="theme-color" content="#0c0c0e">
+<meta name="theme-color" content="#e6e8eb">
 <link rel="icon" type="image/jpeg" href="logo.jpg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-/* Layout concept: dark gym-floor ledger. A condensed display face for the numbers, graphite panels, one red accent.
+/* Layout concept: light grey ledger. A condensed display face for the numbers, white panels, black controls.
+   Green is money coming in and red is money going out. Controls and neutral figures are black.
    Header + tabs on top (bottom bar on phones); each tab is a month stepper, a headline figure, then working cards. */
 :root{
-  --bg:#0c0c0e; --panel:#151518; --panel-2:#1d1d21; --line:#2a2a30; --line-soft:#212126;
-  --text:#ededf0; --muted:#a0a0ab; --faint:#6e6e79;
-  --red:#e3262d; --red-hi:#ff5258; --red-dim:#2e1315; --ok:#48b98a; --warn:#f0a43a;
+  --bg:#e6e8eb; --panel:#ffffff; --panel-2:#f3f4f6; --line:#d3d6db; --line-soft:#e4e6ea; --line-strong:#8a9099;
+  --text:#14161a; --muted:#555a63; --faint:#5f656e;
+  --in:#0f7436; --in-line:#b7dcc4; --out:#bd2a21; --out-line:#efc3be;
+  --accent:#1b1e23; --accent-hi:#363a42; --accent-soft:#dfe2e7; --focus:#1f5fbf;
+  --ok:#0f7436; --warn:#935300; --warn-line:#e3c58f;
   --f-display:'Barlow Condensed','Arial Narrow',Impact,sans-serif;
   --f-body:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
-  color-scheme:dark;
+  color-scheme:light;
 }
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
@@ -25,25 +28,25 @@ h1,h2,h3,p{margin:0}
 .num,.big-num,.stat b{font-family:var(--f-display);font-variant-numeric:tabular-nums;letter-spacing:.01em}
 .tnum{font-variant-numeric:tabular-nums}
 .lab{font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:500}
-.muted{color:var(--muted)} .faint{color:var(--faint)} .red{color:var(--red-hi)} .ok{color:var(--ok)} .warn{color:var(--warn)}
+.muted{color:var(--muted)} .faint{color:var(--faint)} .in{color:var(--in)} .out{color:var(--out)} .ink{color:var(--text)} .red{color:var(--out)} .ok{color:var(--in)} .warn{color:var(--warn)}
 a{color:inherit}
 
 /* header */
 .top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:14px}
 .brand{display:flex;align-items:center;gap:12px;font-family:var(--f-display);font-weight:700;font-size:28px;letter-spacing:.06em;text-transform:uppercase;line-height:1}
-.brand .mark{width:60px;height:60px;flex:none;border-radius:12px;background:#fff;padding:4px;box-sizing:border-box;object-fit:cover;object-position:50% 30%;display:block}
+.brand .mark{width:60px;height:60px;flex:none;border-radius:12px;background:#fff;border:1px solid var(--line);padding:4px;box-sizing:border-box;object-fit:cover;object-position:50% 30%;display:block}
 .bname{display:flex;flex-direction:column;gap:5px;text-transform:none;font-size:32px;letter-spacing:.03em}
 .bname small{text-transform:uppercase}
 .brand small{font:500 12px var(--f-body);letter-spacing:.08em;color:var(--muted)}
 .pill{flex:none;display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:4px 11px;white-space:nowrap}
 .pill::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--ok)}
-.pill.saving::before{background:var(--warn)} .pill.err::before{background:var(--red)}
+.pill.saving::before{background:var(--warn)} .pill.err::before{background:var(--out)}
 .pill.local::before{background:var(--warn)}
 .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:22px}
 .tabs a{padding:11px 16px;text-decoration:none;color:var(--muted);font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
 .tabs a:hover{color:var(--text)}
-.tabs a[aria-current=page]{color:var(--text);border-bottom-color:var(--red)}
-a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--red-hi);outline-offset:2px}
+.tabs a[aria-current=page]{color:var(--text);border-bottom-color:var(--accent)}
+a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 
 /* section heads */
 .head{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:16px}
@@ -52,12 +55,12 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 .stepper{display:flex;align-items:center;gap:6px}
 .stepper .cur{min-width:150px;text-align:center;font-family:var(--f-display);font-size:21px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
 .btn{border:1px solid var(--line);background:var(--panel-2);border-radius:8px;padding:8px 14px;cursor:pointer;font-weight:500;font-size:14px;line-height:1.2;min-height:38px}
-.btn:hover{border-color:#44444c}
-.btn.primary{background:var(--red);border-color:var(--red);color:#fff}
-.btn.primary:hover{background:var(--red-hi);border-color:var(--red-hi)}
+.btn:hover{border-color:var(--line-strong)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{background:var(--accent-hi);border-color:var(--accent-hi)}
 .btn.ghost{background:transparent}
 .btn.small{padding:5px 10px;min-height:30px;font-size:13px}
-.btn.danger{border-color:var(--red);color:var(--red-hi)}
+.btn.danger{border-color:var(--out);color:var(--out)}
 .btn.icon{padding:0;width:38px;display:grid;place-items:center}
 .btn[disabled]{opacity:.45;cursor:default}
 
@@ -73,7 +76,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 .grid2{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}
 .grid-eq{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start}
 .stack{display:flex;flex-direction:column;gap:18px;min-width:0}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;min-width:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;min-width:0;box-shadow:0 1px 2px rgba(20,22,26,.05)}
 .card h2{font-family:var(--f-display);font-size:21px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px;display:flex;justify-content:space-between;align-items:baseline;gap:10px}
 .card h2 small{font:400 12.5px var(--f-body);letter-spacing:0;text-transform:none;color:var(--muted)}
 .note{font-size:13px;color:var(--muted);line-height:1.45}
@@ -93,45 +96,50 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 .wf .r:first-child{border-top:0}
 .wf .r .l{min-width:0} .wf .r .l small{display:block;color:var(--muted);font-size:12.5px}
 .wf .r .v{font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:500}
-.wf .r.tot{border-top:1px solid #3a3a42;background:var(--panel-2);margin:2px -18px;padding:10px 18px}
+.wf .r.tot{border-top:1px solid var(--line-strong);background:var(--panel-2);margin:2px -18px;padding:10px 18px}
 .wf .r.tot .l{font-weight:600} .wf .r.tot .v{font-family:var(--f-display);font-size:23px;font-weight:600}
-.wf .r.final .v{color:var(--red-hi);font-size:27px}
-.sign-m{color:var(--muted)}
+.wf .r.final .v{font-size:27px}
+.wf .r .v.in{color:var(--in)} .wf .r .v.out{color:var(--out)} .wf .r .v.ink{color:var(--text)}
+.sign-m{font-weight:400}
 
 /* bars */
 .bars{display:flex;flex-direction:column;gap:11px}
 .bar .t{display:flex;justify-content:space-between;font-size:13.5px;margin-bottom:4px;gap:10px}
 .bar .t span:last-child{font-variant-numeric:tabular-nums;color:var(--muted)}
 .bar .rail{height:7px;background:var(--panel-2);border-radius:4px;overflow:hidden}
-.bar .rail i{display:block;height:100%;background:var(--red);border-radius:4px}
+.bar .rail i{display:block;height:100%;background:var(--out);border-radius:4px}
+.bar .rail i.ink{background:var(--accent)} .bar .rail i.in{background:var(--in)} .bar .rail i.out{background:var(--out)}
 
 /* chart */
 .chart{width:100%;height:auto;display:block}
 .chart text{fill:var(--muted);font:11px var(--f-body)}
+.chart .grid{stroke:var(--line);stroke-width:1} .chart .b-in{fill:var(--in)} .chart .b-out{fill:var(--out)} .chart text.cur{fill:var(--text);font-weight:600}
 .legend{display:flex;gap:16px;font-size:12.5px;color:var(--muted);margin-top:8px;flex-wrap:wrap}
+.legend i.in{background:var(--in)} .legend i.out{background:var(--out)}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
 
 /* forms */
 .form{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));align-items:end}
 .fld{display:flex;flex-direction:column;gap:5px;min-width:0}
 .fld label{font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
-.fld input,.fld select,.fld textarea,.cell-in{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 11px;width:100%;min-height:40px;color:var(--text)}
+.fld input,.fld select,.fld textarea,.cell-in{background:var(--panel-2);border:1px solid var(--line-strong);border-radius:8px;padding:9px 11px;width:100%;min-height:40px;color:var(--text)}
 .fld input[type=color],.cell-in[type=color]{padding:3px;min-height:40px;width:48px}
-input[type=checkbox]{width:18px;height:18px;accent-color:var(--red)}
+input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
 .fld textarea{min-height:96px;resize:vertical}
 .fld.wide{grid-column:1/-1}
 .form.va-form{grid-template-columns:repeat(3,minmax(0,1fr))}
 .form.va-form .fld.span2{grid-column:span 2}
 .form .actions{display:flex;gap:8px;grid-column:1/-1;flex-wrap:wrap}
-.err{color:var(--red-hi);font-size:13px;grid-column:1/-1}
-input[type=date],input[type=time],input[type=month]{color-scheme:dark}
+.err{color:var(--out);font-size:13px;grid-column:1/-1}
+input[type=date],input[type=time],input[type=month]{color-scheme:light}
+::placeholder{color:var(--faint);opacity:1}
 
 /* chips */
 .chips{display:flex;gap:7px;flex-wrap:wrap}
 .chip{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--panel-2);border-radius:99px;padding:4px 11px;font-size:13px;white-space:nowrap;cursor:default}
-button.chip{cursor:pointer;color:var(--text)} button.chip:hover{border-color:#4a4a52}
-.chip.on{background:var(--red-dim);border-color:var(--red)}
-.dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:none}
+button.chip{cursor:pointer;color:var(--text)} button.chip:hover{border-color:var(--line-strong)}
+.chip.on{background:var(--accent-soft);border-color:var(--accent)}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:none;box-shadow:inset 0 0 0 1px rgba(20,22,26,.25)}
 
 /* lists */
 .day{font-family:var(--f-display);font-size:16px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);padding:14px 0 6px;font-weight:500;display:flex;justify-content:space-between}
@@ -148,12 +156,12 @@ button.chip{cursor:pointer;color:var(--text)} button.chip:hover{border-color:#4a
 table{border-collapse:collapse;width:100%}
 th{font-weight:500;text-align:left;font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);padding:6px 10px 8px 0}
 td{padding:9px 10px 9px 0;border-top:1px solid var(--line-soft);font-variant-numeric:tabular-nums}
-th.r,td.r{text-align:right;padding-right:0}
+th.r,td.r{text-align:right;padding-right:0;padding-left:12px}
 .scroll{overflow-x:auto}
 tr.cur td{background:var(--panel-2)}
 .status{font-size:12px;border-radius:99px;padding:2px 9px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
-.status.paid{color:var(--ok);border-color:#24473a}
-.status.soon{color:var(--warn);border-color:#4d3b1c}
+.status.paid{color:var(--in);border-color:var(--in-line)}
+.status.soon{color:var(--warn);border-color:var(--warn-line)}
 
 /* setup rows */
 .cls-row{display:grid;grid-template-columns:48px minmax(0,1.4fr) minmax(0,1.2fr) 90px 54px auto;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line-soft)}
@@ -171,14 +179,15 @@ a.brand{color:inherit;text-decoration:none}
 .back:hover{color:var(--text)}
 .tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;max-width:1000px}
 .tile{position:relative;aspect-ratio:1/1;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:20px;display:flex;flex-direction:column;justify-content:space-between;text-decoration:none;color:var(--text);min-width:0;overflow:hidden}
-.tile:hover{border-color:var(--red);background:var(--panel-2)}
+.tile:hover{border-color:var(--accent);background:var(--panel)}
 .tile .t-big{font-family:var(--f-display);font-size:clamp(34px,4.6vw,58px);font-weight:600;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:.01em}
 .tile .t-sub{font-size:14px;color:var(--muted);line-height:1.45}
 .tile .t-sub b{color:var(--text);font-weight:600}
 .tile .t-go{position:absolute;top:12px;right:18px;font-size:30px;line-height:1;color:var(--faint)}
-.tile:hover .t-go{color:var(--red-hi)}
-.tile.income{background:var(--panel-2);border-color:#3a3a42}
-.tile.income .t-big{color:var(--red-hi)}
+.tile:hover .t-go{color:var(--text)}
+.tile.income,.tile.out{background:var(--panel)}
+.tile.income .t-big{color:var(--in)}
+.tile.out .t-big{color:var(--out)}
 @media (max-width:720px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.tile{padding:15px;border-radius:16px}.tile .t-sub{font-size:12.5px}.tile .t-go{right:14px;top:10px}}
 /* combined gross band */
 .combined{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-bottom:18px;max-width:1000px}
@@ -196,26 +205,26 @@ a.brand{color:inherit;text-decoration:none}
 @media (max-width:560px){.rc-line{grid-template-columns:24px minmax(0,1fr) 92px}.rc-line .rc-cat{grid-column:2/-1}}
 /* savings tick */
 .tick{display:inline-flex;align-items:center;gap:10px;background:none;border:0;cursor:pointer;color:var(--muted);padding:6px 2px;font-weight:500}
-.tick .box{width:28px;height:28px;border:2px solid #4a4a52;border-radius:8px;display:grid;place-items:center;flex:none;background:var(--bg)}
-.tick:hover .box{border-color:var(--red-hi)}
+.tick .box{width:28px;height:28px;border:2px solid var(--line-strong);border-radius:8px;display:grid;place-items:center;flex:none;background:var(--panel)}
+.tick:hover .box{border-color:var(--accent)}
 .tick.on{color:var(--text)}
-.tick.on .box{background:var(--red);border-color:var(--red)}
+.tick.on .box{background:var(--accent);border-color:var(--accent)}
 /* voice sheet + fab */
-.fab{position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:30;display:flex;align-items:center;gap:9px;background:var(--red);color:#fff;border:0;border-radius:99px;padding:13px 20px 13px 16px;font-weight:600;cursor:pointer;box-shadow:0 8px 28px rgba(0,0,0,.55)}
-.fab:hover{background:var(--red-hi)}
+.fab{position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:30;display:flex;align-items:center;gap:9px;background:var(--accent);color:#fff;border:0;border-radius:99px;padding:13px 20px 13px 16px;font-weight:600;cursor:pointer;box-shadow:0 8px 24px rgba(20,22,26,.3)}
+.fab:hover{background:var(--accent-hi)}
 .fab svg{width:20px;height:20px}
-.scrim{position:fixed;inset:0;background:rgba(0,0,0,.66);z-index:40;display:flex;align-items:flex-end;justify-content:center}
+.scrim{position:fixed;inset:0;background:rgba(20,22,26,.45);z-index:40;display:flex;align-items:flex-end;justify-content:center}
 .sheet{background:var(--panel);border:1px solid var(--line);border-radius:16px 16px 0 0;width:100%;max-width:640px;max-height:92%;overflow:auto;padding:20px max(18px,env(safe-area-inset-left,0px)) calc(20px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:14px}
 .sheet h2{font-family:var(--f-display);font-size:26px;text-transform:uppercase;letter-spacing:.05em;font-weight:600}
 .mic{display:inline-flex;align-items:center;gap:8px}
-.mic.live{background:var(--red);border-color:var(--red);color:#fff}
+.mic.live{background:var(--accent);border-color:var(--accent);color:#fff}
 .mic.live::before{content:"";width:9px;height:9px;border-radius:50%;background:#fff;animation:pulse 1s infinite}
 @keyframes pulse{50%{opacity:.25}}
 .found{display:flex;flex-direction:column}
 .found .it{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:10px 0;border-top:1px solid var(--line-soft);align-items:center}
 .found .it small{display:block;color:var(--muted)}
 .found .it.bad{color:var(--warn)}
-#toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(14px + env(safe-area-inset-top,0px));background:var(--text);color:#111;border-radius:8px;padding:9px 16px;font-size:14px;font-weight:500;z-index:60;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90%}
+#toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(14px + env(safe-area-inset-top,0px));background:var(--text);color:#fff;border-radius:8px;padding:9px 16px;font-size:14px;font-weight:500;z-index:60;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90%}
 #toast.show{opacity:1}
 
 @media (max-width:420px){.form.va-form{grid-template-columns:repeat(2,minmax(0,1fr))}.form.va-form .fld.span2{grid-column:1/-1}}
@@ -228,7 +237,7 @@ a.brand{color:inherit;text-decoration:none}
   .tabs{position:fixed;left:0;right:0;bottom:0;z-index:35;margin:0;background:var(--panel);border-top:1px solid var(--line);border-bottom:0;
         padding:4px max(6px,env(safe-area-inset-right,0px)) calc(4px + env(safe-area-inset-bottom,0px)) max(6px,env(safe-area-inset-left,0px));justify-content:space-between;gap:0}
   .tabs a{flex:1;text-align:center;padding:12px 2px;font-size:12.5px;border-bottom:0;margin:0;border-top:2px solid transparent}
-  .tabs a[aria-current=page]{border-top-color:var(--red);border-bottom:0}
+  .tabs a[aria-current=page]{border-top-color:var(--accent);border-bottom:0}
   .fab{bottom:calc(16px + env(safe-area-inset-bottom,0px));padding:12px 16px 12px 14px}
   #toast{top:calc(12px + env(safe-area-inset-top,0px))}
   .head h1{font-size:32px}
@@ -353,11 +362,11 @@ function fmtPct(r){return String(Math.round(r*10000)/100)+'%'}
 function defaultSettings(){return{
   v:2,
   classes:[
-    {id:'rosebank-grid',name:'Rosebank Grid',venue:'Rosebank',rate:230,color:'#e3262d',active:true},
-    {id:'melrose-lift',name:'Melrose Lift Club',venue:'Melrose Arch',rate:350,color:'#ededf0',active:true},
-    {id:'melrose-hyrox',name:'Melrose Hyrox',venue:'Melrose Arch',rate:230,color:'#f0a43a',active:true},
-    {id:'melrose-rumble',name:'Melrose Rumble',venue:'Melrose Arch',rate:230,color:'#ff7aa8',active:true},
-    {id:'melrose-shape',name:'Melrose Shape',venue:'Melrose Arch',rate:230,color:'#6fb3e0',active:true}
+    {id:'rosebank-grid',name:'Rosebank Grid',venue:'Rosebank',rate:230,color:'#1f5fbf',active:true},
+    {id:'melrose-lift',name:'Melrose Lift Club',venue:'Melrose Arch',rate:350,color:'#6b3fb3',active:true},
+    {id:'melrose-hyrox',name:'Melrose Hyrox',venue:'Melrose Arch',rate:230,color:'#c26a00',active:true},
+    {id:'melrose-rumble',name:'Melrose Rumble',venue:'Melrose Arch',rate:230,color:'#b0307a',active:true},
+    {id:'melrose-shape',name:'Melrose Shape',venue:'Melrose Arch',rate:230,color:'#0c7f8f',active:true}
   ],
   timetable:[],
   be:{basic:0,payDay:25,from:'2026-10',uifPct:'',payePct:'',hourly:'',overtime:[],loan:{monthly:0,balance:0,asOf:''},legacy:{},unpaidDays:{},payslips:{}},
@@ -380,6 +389,16 @@ function defaultSettings(){return{
 var state={settings:defaultSettings(),periods:{},ledger:{}};
 var today=todayStr();
 var S=function(){return state.settings};
+/* The first version used colours made for a dark screen. Swap those for ones that read on light grey, and keep red and green for money. */
+var OLD_CLASS_COLORS={'#e3262d':'#1f5fbf','#ededf0':'#6b3fb3','#f0a43a':'#c26a00','#ff7aa8':'#b0307a','#6fb3e0':'#0c7f8f','#8a8a94':'#6b717b','#b5555a':'#8a5a2b','#d96a8e':'#4b5d9e','#59c2b0':'#5b6472','#ffb84d':'#9a7400','#b79cf0':'#4b5d9e'};
+var CLASS_PALETTE=['#1f5fbf','#6b3fb3','#c26a00','#b0307a','#0c7f8f','#8a5a2b','#4b5d9e'];
+function safeColor(c){
+  var m=/^#([0-9a-f]{6})$/i.exec(String(c||''));if(!m)return '#6b717b';
+  var rgb=[16,8,0].map(function(sh){return parseInt(m[1],16)>>sh&255});
+  var lum=function(a){return a.reduce(function(t,v,i){v/=255;v=v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4);return t+v*[.2126,.7152,.0722][i]},0)};
+  var k=1;while(k>.3&&lum(rgb.map(function(v){return v*k}))>.3)k-=.05;
+  return '#'+rgb.map(function(v){return String(Math.round(v*k).toString(16)).padStart(2,'0')}).join('');
+}
 function applySettings(d){
   var def=defaultSettings();d=d||{};
   var s=Object.assign(def,d);
@@ -392,6 +411,7 @@ function applySettings(d){
   s.savings=Object.assign({monthly:0,from:'',months:{}},d.savings||{});if(!s.savings.months)s.savings.months={};
   s.savings.goal=Object.assign({name:'',target:0,opening:0},(d.savings&&d.savings.goal)||{});
   s.taxpot=Object.assign({months:{}},d.taxpot||{});if(!s.taxpot.months)s.taxpot.months={};
+  s.classes=s.classes.map(function(c){var n=OLD_CLASS_COLORS[String(c&&c.color||'').toLowerCase()];return n?Object.assign({},c,{color:n}):c});
   state.settings=s;
 }
 
@@ -486,7 +506,7 @@ async function initStore(){
 
 /* ============================================================== queries */
 var classById=function(id){return S().classes.filter(function(c){return c.id===id})[0]};
-function clsOf(s){var c=classById(s.classId);return c||{id:s.classId,name:s.label||'Class',venue:'',color:'#8a8a94',rate:s.rate,active:false}}
+function clsOf(s){var c=classById(s.classId);return c||{id:s.classId,name:s.label||'Class',venue:'',color:'#6b717b',rate:s.rate,active:false}}
 var cmpSession=function(a,b){return a.date<b.date?-1:a.date>b.date?1:mins(a.start)-mins(b.start)};
 var idx={key:'',map:{}};
 function sessionIndex(){
@@ -595,7 +615,7 @@ ui.week=mondayOf(today);ui.taxYear=Math.max(2026,+today.slice(0,4));resetWk();re
 
 /* ================================================================= views */
 var h=function(s){return s};
-function chip(c){return '<span class="chip"><i class="dot" style="background:'+esc(c.color)+'"></i>'+esc(c.name)+'</span>'}
+function chip(c){return '<span class="chip"><i class="dot" style="background:'+esc(safeColor(c.color))+'"></i>'+esc(c.name)+'</span>'}
 function stepper(scope,label){
   return '<div class="stepper"><button class="btn icon" data-act="step" data-scope="'+scope+'" data-dir="-1" aria-label="Previous">&#8249;</button><span class="cur">'+esc(label)+'</span><button class="btn icon" data-act="step" data-scope="'+scope+'" data-dir="1" aria-label="Next">&#8250;</button><button class="btn ghost small" data-act="step" data-scope="'+scope+'" data-dir="0">Today</button></div>';
 }
@@ -612,36 +632,39 @@ function chartSvg(mk){
   var data=[];for(var i=5;i>=0;i--){var m=addMonths(mk,-i);var s=summary(m);data.push({m:m,th:Math.max(0,s.takeHome),sp:s.spend})}
   var max=Math.max.apply(null,data.map(function(d){return Math.max(d.th,d.sp)}).concat([1000]));
   var step=max>30000?10000:max>12000?5000:max>5000?2000:1000;var top=Math.ceil(max/step)*step;
-  var W=640,H=230,L=44,B=28,T=10,ph=H-B-T,pw=W-L-8,gw=pw/data.length,bw=Math.min(30,gw/3);
+  var narrow=(window.innerWidth||1000)<720;
+  var W=narrow?340:640,H=narrow?210:230,L=narrow?40:44,B=28,T=10,ph=H-B-T,pw=W-L-8,gw=pw/data.length,bw=Math.min(30,gw/3);
   var y=function(v){return T+ph-(v/top)*ph};
   var o='<svg class="chart" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Take-home pay and spending for the last six months">';
-  for(var v=0;v<=top;v+=step){o+='<line x1="'+L+'" x2="'+(W-8)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="#2a2a30" stroke-width="1"/><text x="'+(L-8)+'" y="'+(y(v)+4)+'" text-anchor="end">'+(v===0?'0':'R'+(v/1000)+'k')+'</text>'}
+  for(var v=0;v<=top;v+=step){o+='<line x1="'+L+'" x2="'+(W-8)+'" y1="'+y(v)+'" y2="'+y(v)+'" class="grid"/><text x="'+(L-8)+'" y="'+(y(v)+4)+'" text-anchor="end">'+(v===0?'0':'R'+(v/1000)+'k')+'</text>'}
   data.forEach(function(d,i){
     var cx=L+gw*i+gw/2;
     var hh=(d.th/top)*ph,hs=(d.sp/top)*ph;
-    o+='<rect x="'+(cx-bw-2)+'" y="'+(T+ph-hh)+'" width="'+bw+'" height="'+Math.max(hh,0)+'" fill="#e3262d" rx="2"><title>'+monthLabel(d.m)+' take-home '+R(d.th)+'</title></rect>';
-    o+='<rect x="'+(cx+2)+'" y="'+(T+ph-hs)+'" width="'+bw+'" height="'+Math.max(hs,0)+'" fill="#5b5b66" rx="2"><title>'+monthLabel(d.m)+' spending '+R(d.sp)+'</title></rect>';
-    o+='<text x="'+cx+'" y="'+(H-9)+'" text-anchor="middle" '+(d.m===mk?'style="fill:#ededf0;font-weight:600"':'')+'>'+monthShort(d.m)+'</text>';
+    o+='<rect x="'+(cx-bw-2)+'" y="'+(T+ph-hh)+'" width="'+bw+'" height="'+Math.max(hh,0)+'" class="b-in" rx="2"><title>'+monthLabel(d.m)+' take-home '+R(d.th)+'</title></rect>';
+    o+='<rect x="'+(cx+2)+'" y="'+(T+ph-hs)+'" width="'+bw+'" height="'+Math.max(hs,0)+'" class="b-out" rx="2"><title>'+monthLabel(d.m)+' spending '+R(d.sp)+'</title></rect>';
+    o+='<text x="'+cx+'" y="'+(H-9)+'" text-anchor="middle" '+(d.m===mk?'class="cur"':'')+'>'+monthShort(d.m)+'</text>';
   });
-  return o+'</svg><div class="legend"><span><i style="background:#e3262d"></i>Take-home</span><span><i style="background:#5b5b66"></i>Spending</span></div>';
+  return o+'</svg><div class="legend"><span><i class="in"></i>Take-home</span><span><i class="out"></i>Spending</span></div>';
 }
-function wfRow(l,sub,v,cls,sign){return '<div class="r '+(cls||'')+'"><div class="l">'+l+(sub?'<small>'+sub+'</small>':'')+'</div><div class="v">'+(sign?'<span class="sign-m">'+sign+' </span>':'')+v+'</div></div>'}
+/* tone: 'in' is money coming in (green), 'out' is money going out (red), 'ink' is neutral. A minus sign means out, a plus sign means in. */
+function wfRow(l,sub,v,cls,sign,tone){var t=tone||(sign==='\u2212'?'out':sign==='+'?'in':'');return '<div class="r '+(cls||'')+'"><div class="l">'+l+(sub?'<small>'+sub+'</small>':'')+'</div><div class="v'+(t?' '+t:'')+'">'+(sign?'<span class="sign-m">'+sign+' </span>':'')+v+'</div></div>'}
+function sgn(v){return v<0?'out':'in'}
 function wfCard(mk){
   var s=summary(mk),be=s.be,vp=vaPayday(mk),bp=bePayday(mk),per=period(mk);
   return '<div class="card" id="breakdown"><h2>'+monthLabel(mk)+' <small>gross to what is left</small></h2><div class="wf">'+
-    wfRow('Virgin Active classes',s.ses.length?s.ses.length+' classes · invoice '+fmtDs(per.start)+' to '+fmtDs(per.end)+' · paid '+fmtD(vp.date)+(per.end>=today?' · forecast':''):'No classes in this invoice period yet',R(s.va),'')+
-    wfRow('B-Active salary',be.mode==='legacy'?'As recorded in your old sheet, before payslip deductions':'Basic '+R(be.basic)+(be.unpaid?' less unpaid leave '+R(be.unpaid):'')+(be.overtime?' plus overtime '+R(be.overtime):'')+' · paid '+fmtD(bp.date),R(be.gross),'')+
+    wfRow('Virgin Active classes',s.ses.length?s.ses.length+' classes · invoice '+fmtDs(per.start)+' to '+fmtDs(per.end)+' · paid '+fmtD(vp.date)+(per.end>=today?' · forecast':''):'No classes in this invoice period yet',R(s.va),'','','in')+
+    wfRow('B-Active salary',be.mode==='legacy'?'As recorded in your old sheet, before payslip deductions':'Basic '+R(be.basic)+(be.unpaid?' less unpaid leave '+R(be.unpaid):'')+(be.overtime?' plus overtime '+R(be.overtime):'')+' · paid '+fmtD(bp.date),R(be.gross),'','','in')+
     (s.extra?wfRow('Extra income','',R(s.extra),'','+'):'')+
-    wfRow('Combined gross income','',R(s.gross),'tot')+
+    wfRow('Combined gross income','',R(s.gross),'tot','','in')+
     (be.paye?wfRow('PAYE tax',be.mode==='estimate'?'Your payslip rate, '+fmtPct(payeRate())+', on this month\'s salary':'From your payslip',R(be.paye),'','−'):'')+
     (be.uif?wfRow('UIF',be.mode==='estimate'?'Your payslip rate, '+fmtPct(uifRate())+', on this month\'s salary':'From your payslip',R(be.uif),'','−'):'')+
     (be.loan?wfRow('B-Active loan repayment',be.after!=null?'Balance after this payment '+R(be.after):'',R(be.loan),'','−'):'')+
     (be.other?wfRow('Other payslip deductions','',R(be.other),'','−'):'')+
     (s.tax?wfRow('Tax set aside on Virgin Active','At '+fmtPct(vaTaxRate())+' of this income. No tax is taken off it at source.',R(s.tax),'','−'):'')+
-    wfRow('Take-home','',R(s.takeHome),'tot')+
+    wfRow('Take-home','',R(s.takeHome),'tot','',sgn(s.takeHome))+
     wfRow('Expenses','Petrol, food, incidentals and everything you logged',R(s.spend),'','−')+
-    wfRow('Usable after deductions and expenses','',R(s.usable),s.savings?'tot':'tot final')+
-    (s.savings?wfRow('Savings',savedDone(mk)?'Moved to savings':'Planned',R(s.savings),'','−')+wfRow('Left after savings','',R(s.left),'tot final'):'')+
+    wfRow('Usable after deductions and expenses','',R(s.usable),s.savings?'tot':'tot final','',sgn(s.usable))+
+    (s.savings?wfRow('Savings',savedDone(mk)?'Moved to savings':'Planned',R(s.savings),'','\u2212','ink')+wfRow('Left after savings','',R(s.left),'tot final','',sgn(s.left)):'')+
     '</div></div>';
 }
 function spendCard(mk){
@@ -660,15 +683,15 @@ function viewOverview(){
   var done=s.ses.filter(function(x){return x.date<=today}).length,togo=s.ses.length-done;
   var weekly=S().recurring.filter(function(r){return r.per==='week'&&mk>=r.from&&(!r.until||mk<=r.until)});
   var head='<div class="head"><div><h1>Overview</h1><p>'+(mk===mkOf(today)?'What you will have earned by the end of '+MONL[mkParse(mk).m-1]+'. ':'')+'Tap a square to open it.</p></div>'+stepper('overview',monthLabel(mk))+'</div>';
-  var band='<div class="combined"><div class="cb"><span class="lab">Combined gross by '+eom+'</span><span class="big-num">'+R(s.gross)+'</span><span class="sub">Virgin Active '+R(s.va)+' + B-Active '+R(s.be.gross)+(s.extra?' + extra '+R(s.extra):'')+'</span></div><div class="cb"><span class="lab">Usable by '+eom+', after deductions and expenses</span><span class="big-num red">'+Rw(s.usable)+'</span><span class="sub">Less deductions '+Rw(s.deductions)+' and expenses '+Rw(s.spend)+'</span></div></div>';
+  var band='<div class="combined"><div class="cb"><span class="lab">Combined gross by '+eom+'</span><span class="big-num in">'+R(s.gross)+'</span><span class="sub">Virgin Active '+R(s.va)+' + B-Active '+R(s.be.gross)+(s.extra?' + extra '+R(s.extra):'')+'</span></div><div class="cb"><span class="lab">Usable by '+eom+', after deductions and expenses</span><span class="big-num '+sgn(s.usable)+'">'+Rw(s.usable)+'</span><span class="sub">Less deductions '+Rw(s.deductions)+' and expenses '+Rw(s.spend)+'</span></div></div>';
   var wk=weekData(mondayOf(today));
   var tiles='<div class="tiles">'+
-    tile('virgin-active','Virgin Active',R(s.va),(s.ses.length?'<b>'+done+'</b> class'+(done===1?'':'es')+' done'+(togo?' · '+togo+' to go':''):'No classes yet')+'<br>Paid '+fmtD(vp.date),'income')+
-    tile('be-active','B-Active salary',s.be.has?R(s.be.net):'None','Paid '+fmtD(bp.date),'income')+
-    tile('money','Expenses',R(s.spend),weekly.length?esc(weekly.map(function(r){return r.label}).join(', '))+' · '+R(sum(weekly,function(r){return +r.amount||0}))+' a week':'This month')+
-    tile('week','This week',wk.recs.length?R(wk.left):'Set up',wk.recs.length?(wk.left<0?'Over by '+R(-wk.left)+' · allowance '+R(wk.budget):'left of '+R(wk.budget)+' · spent '+R(wk.spent)):'Add a weekly allowance in Setup')+
-    tile('savings','Savings',R(s.savings),savedDone(mk)?'&#10003; Saved this month':(s.savings?'Not saved yet · saved so far '+R(savedTotal()):'Not set'))+
-    tile('tax','Tax',Rw(s.be.paye+s.tax),'PAYE '+Rw(s.be.paye)+(s.tax?' · put aside '+Rw(s.tax):''))+
+    tile('virgin-active','Virgin Active',Rw(s.va),(s.ses.length?'<b>'+done+'</b> class'+(done===1?'':'es')+' done'+(togo?' · '+togo+' to go':''):'No classes yet')+'<br>Paid '+fmtD(vp.date),'income')+
+    tile('be-active','B-Active salary',s.be.has?Rw(s.be.net):'None','Paid '+fmtD(bp.date),'income')+
+    tile('money','Expenses',Rw(s.spend),weekly.length?esc(weekly.map(function(r){return r.label}).join(', '))+' · '+R(sum(weekly,function(r){return +r.amount||0}))+' a week':'This month','out')+
+    tile('week','This week',wk.recs.length?Rw(wk.left):'Set up',wk.recs.length?(wk.left<0?'Over by '+R(-wk.left)+' · allowance '+R(wk.budget):'left of '+R(wk.budget)+' · spent '+R(wk.spent)):'Add a weekly allowance in Setup',wk.recs.length&&wk.left<0?'out':'')+
+    tile('savings','Savings',Rw(s.savings),savedDone(mk)?'&#10003; Saved this month':(s.savings?'Not saved yet · saved so far '+R(savedTotal()):'Not set'))+
+    tile('tax','Tax',Rw(s.be.paye+s.tax),'PAYE '+Rw(s.be.paye)+(s.tax?' · put aside '+Rw(s.tax):''),'out')+
     tile('forecast','Forecast',String(mkParse(mk).y),'Every month of the year')+
     tile('setup','Setup',String(S().timetable.length),'classes a week, rates and leave')+
     '</div>';
@@ -680,9 +703,9 @@ function yearCard(){
     var m=yr+'-'+pad(i),s=summary(m),per=period(m);
     var lv=(S().leave||[]).some(function(l){return l.from<=per.end&&l.to>=per.start});
     t.n+=s.ses.length;t.va+=s.va;t.be+=s.be.gross;t.gr+=s.gross;t.de+=s.deductions;t.ex+=s.spend;t.us+=s.usable;t.sv+=s.savings;t.left+=s.left;
-    rows+='<tr'+(m===ui.month?' class="cur"':'')+'><td><a href="#forecast" data-act="fc-pick" data-m="'+m+'" style="text-decoration:none">'+MONL[i-1]+'</a>'+(lv?' <span class="tag" style="color:var(--warn);border-color:#4d3b1c">Leave</span>':'')+'</td><td class="faint" style="white-space:nowrap">'+fmtDs(per.start)+' to '+fmtDs(per.end)+'</td><td class="r">'+s.ses.length+'</td><td class="r">'+Rw(s.va)+'</td><td class="r">'+(s.be.has?Rw(s.be.gross):'<span class="faint">none</span>')+'</td><td class="r">'+Rw(s.gross)+'</td><td class="r">'+Rw(s.deductions)+'</td><td class="r">'+Rw(s.spend)+'</td><td class="r" style="color:var(--red-hi);font-weight:600">'+Rw(s.usable)+'</td><td class="r">'+Rw(s.savings)+'</td><td class="r">'+Rw(s.left)+'</td></tr>';
+    rows+='<tr'+(m===ui.month?' class="cur"':'')+'><td><a href="#forecast" data-act="fc-pick" data-m="'+m+'" style="text-decoration:none">'+MONL[i-1]+'</a>'+(lv?' <span class="tag" style="color:var(--warn);border-color:var(--warn-line)">Leave</span>':'')+'</td><td class="faint" style="white-space:nowrap">'+fmtDs(per.start)+' to '+fmtDs(per.end)+'</td><td class="r">'+s.ses.length+'</td><td class="r in">'+Rw(s.va)+'</td><td class="r in">'+(s.be.has?Rw(s.be.gross):'<span class="faint">none</span>')+'</td><td class="r in">'+Rw(s.gross)+'</td><td class="r out">'+Rw(s.deductions)+'</td><td class="r out">'+Rw(s.spend)+'</td><td class="r '+sgn(s.usable)+'" style="font-weight:600">'+Rw(s.usable)+'</td><td class="r">'+Rw(s.savings)+'</td><td class="r '+sgn(s.left)+'">'+Rw(s.left)+'</td></tr>';
   }
-  rows+='<tr><td><b>Year</b></td><td></td><td class="r"><b>'+t.n+'</b></td><td class="r"><b>'+Rw(t.va)+'</b></td><td class="r"><b>'+Rw(t.be)+'</b></td><td class="r"><b>'+Rw(t.gr)+'</b></td><td class="r"><b>'+Rw(t.de)+'</b></td><td class="r"><b>'+Rw(t.ex)+'</b></td><td class="r"><b>'+Rw(t.us)+'</b></td><td class="r"><b>'+Rw(t.sv)+'</b></td><td class="r"><b>'+Rw(t.left)+'</b></td></tr>';
+  rows+='<tr><td><b>Year</b></td><td></td><td class="r"><b>'+t.n+'</b></td><td class="r in"><b>'+Rw(t.va)+'</b></td><td class="r in"><b>'+Rw(t.be)+'</b></td><td class="r in"><b>'+Rw(t.gr)+'</b></td><td class="r out"><b>'+Rw(t.de)+'</b></td><td class="r out"><b>'+Rw(t.ex)+'</b></td><td class="r '+sgn(t.us)+'"><b>'+Rw(t.us)+'</b></td><td class="r"><b>'+Rw(t.sv)+'</b></td><td class="r '+sgn(t.left)+'"><b>'+Rw(t.left)+'</b></td></tr>';
   return '<div class="card"><h2>Every month in '+yr+' <span style="display:flex;gap:6px"><button class="btn icon small" data-act="fc-year" data-dir="-1" aria-label="Previous year"'+(yr<=2026?' disabled':'')+'>&#8249;</button><button class="btn icon small" data-act="fc-year" data-dir="1" aria-label="Next year">&#8250;</button></span></h2><div class="scroll"><table><tr><th>Paid in</th><th>Virgin Active invoice</th><th class="r">Classes</th><th class="r">Virgin Active</th><th class="r">B-Active</th><th class="r">Gross</th><th class="r">Deductions</th><th class="r">Expenses</th><th class="r">Usable</th><th class="r">Savings</th><th class="r">After savings</th></tr>'+rows+'</table></div><p class="note" style="margin-top:8px">Gross is Virgin Active plus B-Active before anything comes off. Deductions are PAYE, UIF, the loan and the tax set-aside on Virgin Active. Usable is gross less deductions and expenses. Future months follow your weekly timetable, public holidays and leave, and only know the costs you have set up or logged. Tap a month for its breakdown.</p></div>';
 }
 function viewForecast(){
@@ -701,7 +724,7 @@ function viewSavings(){
   var head='<div class="head"><div><h1>Savings</h1><p>Set an amount to put away each month, then tick it once the money has moved.</p></div></div>';
   var cm=ui.month,camt=savingsFor(cm);
   var now='<div class="card"><h2>'+monthLabel(cm)+' <small>'+R(camt)+' to save</small></h2>'+(camt>0?'<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><span class="note" style="font-size:15px">Have you put this month\'s savings away?</span>'+tickBtn(cm,savedDone(cm))+'</div>':'<p class="note">No saving is planned for this month.</p>')+'</div>';
-  var hero='<div class="hero"><div><span class="lab">Saved so far</span><span class="big-num red">'+R(savedTotal())+'</span><span class="sub">Months you ticked as saved</span></div><div><span class="lab">Planned in '+yr+'</span><span class="mid">'+R(plan)+'</span><span class="sub">'+R(done)+' saved</span></div><div><span class="lab">Each month</span><span class="mid">'+R(sv.monthly)+'</span><span class="sub">From '+(sv.from?monthLabel(sv.from):'not set')+'</span></div></div>';
+  var hero='<div class="hero"><div><span class="lab">Saved so far</span><span class="big-num">'+R(savedTotal())+'</span><span class="sub">Months you ticked as saved</span></div><div><span class="lab">Planned in '+yr+'</span><span class="mid">'+R(plan)+'</span><span class="sub">'+R(done)+' saved</span></div><div><span class="lab">Each month</span><span class="mid">'+R(sv.monthly)+'</span><span class="sub">From '+(sv.from?monthLabel(sv.from):'not set')+'</span></div></div>';
   var set='<div class="card"><h2>Monthly saving</h2><div class="form"><div class="fld"><label for="sv-m">Amount each month (R)</label><input id="sv-m" class="cell-in" type="number" inputmode="decimal" step="any" min="0" data-sp="savings.monthly" data-num="1" value="'+esc(sv.monthly)+'"></div><div class="fld"><label for="sv-f">Starting from</label><input id="sv-f" class="cell-in" type="month" data-sp="savings.from" value="'+esc(sv.from)+'"></div></div><p class="note" style="margin-top:10px">Savings come off your take-home before the leftover figure. Change one month below if you save a different amount.</p></div>';
   var list='<div class="card"><h2>'+yr+' <span style="display:flex;gap:6px"><button class="btn icon small" data-act="fc-year" data-dir="-1" aria-label="Previous year"'+(yr<=2026?' disabled':'')+'>&#8249;</button><button class="btn icon small" data-act="fc-year" data-dir="1" aria-label="Next year">&#8250;</button></span></h2>'+rows+'</div>';
   var g=sv.goal,have=(+g.opening||0)+(savedTotal()-(+g.opening||0)),target=+g.target||0,remain=Math.max(target-savedTotal(),0);
@@ -742,15 +765,15 @@ function viewWeek(){
   var head='<div class="head"><div><h1>This week</h1><p>Your weekly allowances and what is left of them.</p></div><div class="stepper"><button class="btn icon" data-act="wk-step" data-dir="-1" aria-label="Previous week">&#8249;</button><span class="cur" style="min-width:190px">'+fmtDs(w.monday)+' to '+fmtDs(w.end)+'</span><button class="btn icon" data-act="wk-step" data-dir="1" aria-label="Next week">&#8250;</button><button class="btn ghost small" data-act="wk-step" data-dir="0">Today</button></div></div>';
   if(!w.recs.length)return head+'<div class="empty"><b>No weekly allowances set up</b>In Setup, add a regular cost set to a week, such as Food R1,000, and it shows up here.</div>';
   var over=w.left<0;
-  var hero='<div class="hero"><div><span class="lab">Left this week</span><span class="big-num '+(over?'':'red')+'">'+R(w.left)+'</span><span class="sub">'+(over?'Over your allowance':'Of '+R(w.budget)+' set aside')+'</span></div><div><span class="lab">Allowance</span><span class="mid">'+R(w.budget)+'</span><span class="sub">'+w.recs.length+' items</span></div><div><span class="lab">Spent</span><span class="mid">'+R(w.spent)+'</span><span class="sub">Logged so far</span></div></div>';
-  var bars='<div class="card"><h2>Allowances</h2><div class="bars">'+w.recs.map(function(r){var pc=r.amount?Math.min(100,r.actual/r.amount*100):0;return '<div class="bar"><div class="t"><span>'+esc(r.label)+(r.catchAll?' <span class="faint">(everything else)</span>':'')+'</span><span>'+R(r.actual)+' of '+R(r.amount)+'</span></div><div class="rail"><i style="width:'+pc+'%;'+(r.actual>r.amount?'background:var(--warn)':'')+'"></i></div></div>'}).join('')+'</div></div>';
+  var hero='<div class="hero"><div><span class="lab">Left this week</span><span class="big-num '+(over?'out':'')+'">'+R(w.left)+'</span><span class="sub">'+(over?'Over your allowance':'Of '+R(w.budget)+' set aside')+'</span></div><div><span class="lab">Allowance</span><span class="mid">'+R(w.budget)+'</span><span class="sub">'+w.recs.length+' items</span></div><div><span class="lab">Spent</span><span class="mid out">'+R(w.spent)+'</span><span class="sub">Logged so far</span></div></div>';
+  var bars='<div class="card"><h2>Allowances</h2><div class="bars">'+w.recs.map(function(r){var pc=r.amount?Math.min(100,r.actual/r.amount*100):0;return '<div class="bar"><div class="t"><span>'+esc(r.label)+(r.catchAll?' <span class="faint">(everything else)</span>':'')+'</span><span'+(r.actual>r.amount?' style="color:var(--out);font-weight:600"':'')+'>'+R(r.actual)+' of '+R(r.amount)+(r.actual>r.amount?' · over':'')+'</span></div><div class="rail"><i style="width:'+pc+'%"></i></div></div>'}).join('')+'</div></div>';
   var form='<div class="card"><h2>Log a spend <span class="chips"><button class="btn small" type="button" data-act="rc-cam" data-kind="receipt">Take a photo</button><button class="btn small" type="button" data-act="rc-pick" data-kind="receipt">Upload a photo</button></span></h2><form class="form" data-form="wk">'+
     '<div class="fld"><label for="wk-date">Date</label><input id="wk-date" type="date" data-b="wk.date" value="'+esc(f.date)+'" min="'+w.monday+'" max="'+w.end+'" required></div>'+
     '<div class="fld"><label for="wk-allow">Counts toward</label><select id="wk-allow" data-b="wk.allow">'+w.recs.map(function(r){return '<option value="'+esc(r.id)+'"'+(r.id===f.allow?' selected':'')+'>'+esc(r.label)+'</option>'}).join('')+'</select></div>'+
     '<div class="fld"><label for="wk-label">What for</label><input id="wk-label" data-b="wk.label" value="'+esc(f.label)+'" placeholder="Checkers, Uber" required></div>'+
     '<div class="fld"><label for="wk-amt">Amount (R)</label><input id="wk-amt" type="number" inputmode="decimal" min="0" step="any" data-b="wk.amount" value="'+esc(f.amount)+'" required></div>'+
     (f.error?'<div class="err">'+esc(f.error)+'</div>':'')+'<div class="actions"><button class="btn primary" type="submit">Add</button></div></form></div>';
-  var list='<div class="card"><h2>Logged this week <small>'+w.entries.length+' entries</small></h2>'+(w.entries.length?w.entries.map(function(e){var arm=ui.armed==='e:'+e.id;return '<div class="mrow" style="grid-template-columns:62px minmax(0,1fr) auto auto"><div class="muted tnum" style="font-size:14px">'+fmtDs(e.date)+'</div><div style="min-width:0"><div>'+esc(e.label)+'</div><div class="note">'+(w.counts[e.id]?'Counts toward '+esc(w.counts[e.id]):'Not part of a weekly allowance')+'</div></div><div class="tnum" style="font-weight:500">'+R(e.amount)+'</div><button class="btn small '+(arm?'danger':'ghost')+'" data-act="m-del" data-id="'+e.id+'">'+(arm?'Sure?':'Delete')+'</button></div>'}).join(''):'<div class="empty"><b>Nothing logged this week</b>Add a spend above, or use Quick add.</div>')+'</div>';
+  var list='<div class="card"><h2>Logged this week <small>'+w.entries.length+' entries</small></h2>'+(w.entries.length?w.entries.map(function(e){var arm=ui.armed==='e:'+e.id;return '<div class="mrow" style="grid-template-columns:62px minmax(0,1fr) auto auto"><div class="muted tnum" style="font-size:14px">'+fmtDs(e.date)+'</div><div style="min-width:0"><div>'+esc(e.label)+'</div><div class="note">'+(w.counts[e.id]?'Counts toward '+esc(w.counts[e.id]):'Not part of a weekly allowance')+'</div></div><div class="tnum out" style="font-weight:500">\u2212'+R(e.amount)+'</div><button class="btn small '+(arm?'danger':'ghost')+'" data-act="m-del" data-id="'+e.id+'">'+(arm?'Sure?':'Delete')+'</button></div>'}).join(''):'<div class="empty"><b>Nothing logged this week</b>Add a spend above, or use Quick add.</div>')+'</div>';
   return head+hero+'<div class="grid2"><div class="stack">'+bars+form+'</div><div class="stack">'+list+'</div></div>';
 }
 
@@ -773,14 +796,14 @@ function taxDueNow(){
 function viewTax(){
   var y=ui.taxYear,rows=taxRows(y),r=slipRates(),pr=payeRate(),vr=vaTaxRate(),st=S();
   var head='<div class="head"><div><h1>Tax</h1><p>Worked out from your payslip, not from tax tables.</p></div><div class="stepper"><button class="btn icon" data-act="tax-year" data-dir="-1" aria-label="Previous year"'+(y<=2026?' disabled':'')+'>&#8249;</button><span class="cur">'+y+'</span><button class="btn icon" data-act="tax-year" data-dir="1" aria-label="Next year">&#8250;</button></div></div>';
-  var hero='<div class="hero"><div><span class="lab">To put aside now</span><span class="big-num red">'+Rw(taxDueNow())+'</span><span class="sub">'+(st.tax.vaSetAside?'Tax on Virgin Active income for months you have not ticked':'Turned off in Setup')+'</span></div>'+
+  var hero='<div class="hero"><div><span class="lab">To put aside now</span><span class="big-num out">'+Rw(taxDueNow())+'</span><span class="sub">'+(st.tax.vaSetAside?'Tax on Virgin Active income for months you have not ticked':'Turned off in Setup')+'</span></div>'+
     '<div><span class="lab">Payslip tax rate</span><span class="mid">'+fmtPct(pr)+'</span><span class="sub">'+(ownRate(st.be.payePct)?'Your own rate':(r?'PAYE divided by gross, '+monthLabel(r.mk):'Add a payslip'))+'</span></div>'+
     '<div><span class="lab">Virgin Active rate</span><span class="mid">'+fmtPct(vr)+'</span><span class="sub">'+(ownRate(st.tax.vaPct)?'Your own rate':'Same as your payslip')+'</span></div></div>';
-  var how=r?'<div class="wf">'+wfRow('Latest payslip','',monthLabel(r.mk),'')+wfRow('Gross pay','After any unpaid leave',R(r.gross),'')+wfRow('PAYE taken','',R(r.paye),'','−')+wfRow('UIF taken','',R(r.uif),'','−')+wfRow('Payslip tax rate','PAYE divided by gross pay',fmtPct(r.payeRate),'tot')+'</div>':'<div class="empty"><b>No payslip yet</b>On the B-Active page, take a photo of your payslip or enter its figures. Your tax rate is worked out from it.</div>';
+  var how=r?'<div class="wf">'+wfRow('Latest payslip','',monthLabel(r.mk),'','','ink')+wfRow('Gross pay','After any unpaid leave',R(r.gross),'','','in')+wfRow('PAYE taken','',R(r.paye),'','−')+wfRow('UIF taken','',R(r.uif),'','−')+wfRow('Payslip tax rate','PAYE divided by gross pay',fmtPct(r.payeRate),'tot','','ink')+'</div>':'<div class="empty"><b>No payslip yet</b>On the B-Active page, take a photo of your payslip or enter its figures. Your tax rate is worked out from it.</div>';
   var rowHtml=rows.map(function(x){
     var cur=x.mk===mkOf(today);
     var paye=x.paye===null?'<span class="faint">n/a</span>':(x.mode==='estimate'?'<span class="muted">about '+Rw(x.paye)+'</span>':Rw(x.paye));
-    return '<tr'+(cur?' class="cur"':'')+'><td>'+MONL[mkParse(x.mk).m-1]+'</td><td class="r">'+paye+'</td><td class="r">'+Rw(x.va)+'</td><td class="r">'+(x.sug>0?Rw(x.sug):'<span class="faint">none</span>')+'</td><td class="r">'+(x.sug>0?tickBtn(x.mk,x.done,'tax-done','Done','Due'):'')+'</td></tr>';
+    return '<tr'+(cur?' class="cur"':'')+'><td>'+MONL[mkParse(x.mk).m-1]+'</td><td class="r out">'+paye+'</td><td class="r in">'+Rw(x.va)+'</td><td class="r out">'+(x.sug>0?Rw(x.sug):'<span class="faint">none</span>')+'</td><td class="r">'+(x.sug>0?tickBtn(x.mk,x.done,'tax-done','Done','Due'):'')+'</td></tr>';
   }).join('');
   var months='<div class="card"><h2>Month by month <small>'+y+'</small></h2><div class="scroll"><table><tr><th>Month</th><th class="r">PAYE</th><th class="r">Virgin Active</th><th class="r">Put aside</th><th class="r">Moved</th></tr>'+rowHtml+'</table></div><p class="note" style="margin-top:10px">PAYE is what B-Active takes. Put aside is the tax rate on your Virgin Active income. Tick a month once the money has moved. Months before your payslip figures start are not included.</p></div>';
   var notes='<div class="card"><h2>How it is worked out</h2>'+how+'<div class="note" style="display:flex;flex-direction:column;gap:8px;margin-top:12px"><p>B-Active months without their own payslip use your payslip rate on that month’s salary. Add each new payslip and its real figures replace the estimate.</p><p>Virgin Active takes no tax off, so the amount to put aside is that income times the rate above. Change the rate in Setup if you know a better one.</p><p>Tax rises faster than pay, so a month with more pay is taxed at a higher rate than a month with less. That is the usual reason an estimate differs from a real payslip. This is a planning figure, not tax advice.</p></div></div>';
@@ -1078,9 +1101,9 @@ function viewVA(){
   var left=all.filter(function(s){return s.date>today}).length;
   var f=ui.va,act=S().classes.filter(function(c){return c.active||c.id===f.classId});
   var lv=(S().leave||[]).filter(function(l){return l.from<=per.end&&l.to>=per.start});
-  var lvBanner=lv.length?'<div class="note" style="margin-bottom:14px"><span class="tag" style="color:var(--warn);border-color:#4d3b1c">On leave</span> '+lv.map(function(l){return fmtD(l.from)+' to '+fmtD(l.to)}).join(', ')+'. No classes are counted on these days.</div>':'';
+  var lvBanner=lv.length?'<div class="note" style="margin-bottom:14px"><span class="tag" style="color:var(--warn);border-color:var(--warn-line)">On leave</span> '+lv.map(function(l){return fmtD(l.from)+' to '+fmtD(l.to)}).join(', ')+'. No classes are counted on these days.</div>':'';
   var head='<div class="head"><div><h1>Virgin Active</h1><p>Invoice '+fmtDY(per.start)+' to '+fmtDY(per.end)+' · paid '+fmtDY(vp.date)+paydayNote(vp)+'</p></div>'+stepper('va','Paid '+MON[mkParse(mk).m-1]+' '+mkParse(mk).y)+'</div>';
-  var stats='<div class="stats"><div class="stat"><b>'+all.length+'</b><span>Classes</span></div><div class="stat"><b>'+left+'</b><span>Still to teach</span></div><div class="stat"><b class="red">'+R(total)+'</b><span>This invoice</span></div><div class="stat"><b>'+R(earned)+'</b><span>Done so far</span></div></div>';
+  var stats='<div class="stats"><div class="stat"><b>'+all.length+'</b><span>Classes</span></div><div class="stat"><b>'+left+'</b><span>Still to teach</span></div><div class="stat"><b class="in">'+R(total)+'</b><span>This invoice</span></div><div class="stat"><b class="in">'+R(earned)+'</b><span>Done so far</span></div></div>';
   var form='<div class="card"><h2>'+(f.id?'Edit class':'Add a class')+'<small>Rate fills in from the class</small></h2><form class="form va-form" data-form="va">'+
     '<div class="fld"><label for="va-date">Date</label><input id="va-date" type="date" data-b="va.date" value="'+esc(f.date)+'" required></div>'+
     '<div class="fld span2"><label for="va-class">Class</label><select id="va-class" data-b="va.classId">'+act.map(function(c){return '<option value="'+esc(c.id)+'"'+(c.id===f.classId?' selected':'')+'>'+esc(c.name)+'</option>'}).join('')+'</select></div>'+
@@ -1108,12 +1131,12 @@ function viewVA(){
       var c=clsOf(s);
       if(s.date!==cur){cur=s.date;var hn=holidayName(s.date);list+='<div class="day"><span>'+fmtD(s.date)+'</span><span style="font-size:12px;letter-spacing:.04em;color:var(--warn)">'+(hn?esc(hn):'')+'</span></div>'}
       var arm=ui.armed==='s:'+s.id;
-      list+='<div class="row'+(s.note?' flag':'')+'"><div class="when">'+esc(s.start)+' to '+esc(s.end)+'</div><div class="what" data-flag="'+esc(s.note||'')+'">'+chip(c)+'</div><div class="amt">'+(+s.rate?R(s.rate):'<span class="warn">R0</span>')+'</div><div class="acts"><button class="btn small ghost" data-act="va-edit" data-id="'+s.id+'">Edit</button><button class="btn small '+(arm?'danger':'ghost')+'" data-act="va-del" data-id="'+s.id+'">'+(arm?'Sure?':'Delete')+'</button></div></div>';
+      list+='<div class="row'+(s.note?' flag':'')+'"><div class="when">'+esc(s.start)+' to '+esc(s.end)+'</div><div class="what" data-flag="'+esc(s.note||'')+'">'+chip(c)+'</div><div class="amt in">'+(+s.rate?R(s.rate):'<span class="warn">R0</span>')+'</div><div class="acts"><button class="btn small ghost" data-act="va-edit" data-id="'+s.id+'">Edit</button><button class="btn small '+(arm?'danger':'ghost')+'" data-act="va-del" data-id="'+s.id+'">'+(arm?'Sure?':'Delete')+'</button></div></div>';
     });
   }
   var by={};all.forEach(function(s){var c=clsOf(s);var o=by[c.id]=by[c.id]||{c:c,n:0,t:0};o.n++;o.t+=+s.rate||0});
   var byRows=Object.keys(by).map(function(k){return by[k]}).sort(function(a,b){return b.t-a.t});
-  var bytab='<div class="card"><h2>By class</h2>'+(byRows.length?'<div class="scroll"><table><tr><th>Class</th><th class="r">Classes</th><th class="r">Total</th></tr>'+byRows.map(function(o){return '<tr><td>'+chip(o.c)+'</td><td class="r">'+o.n+'</td><td class="r">'+R(o.t)+'</td></tr>'}).join('')+'<tr><td><b>Total</b></td><td class="r"><b>'+all.length+'</b></td><td class="r"><b>'+R(total)+'</b></td></tr></table></div>':'<p class="note">Totals appear once you add classes.</p>')+
+  var bytab='<div class="card"><h2>By class</h2>'+(byRows.length?'<div class="scroll"><table><tr><th>Class</th><th class="r">Classes</th><th class="r">Total</th></tr>'+byRows.map(function(o){return '<tr><td>'+chip(o.c)+'</td><td class="r">'+o.n+'</td><td class="r in">'+R(o.t)+'</td></tr>'}).join('')+'<tr><td><b>Total</b></td><td class="r"><b>'+all.length+'</b></td><td class="r in"><b>'+R(total)+'</b></td></tr></table></div>':'<p class="note">Totals appear once you add classes.</p>')+
     '<div class="chips" style="margin-top:14px"><button class="btn small" data-act="copy-invoice"'+(all.length?'':' disabled')+'>Copy invoice summary</button></div></div>';
   var vchips='<div class="chips" style="margin-bottom:12px"><button class="chip'+(ui.venue==='all'?' on':'')+'" data-act="venue" data-v="all">All venues</button>'+venues.map(function(v){return '<button class="chip'+(ui.venue===v?' on':'')+'" data-act="venue" data-v="'+esc(v)+'">'+esc(v)+'</button>'}).join('')+'</div>';
   var listCard='<div class="card"><h2>Classes this invoice <small>'+fmtDs(per.start)+' to '+fmtDs(per.end)+'</small></h2>'+vchips+list+'</div>';
@@ -1125,17 +1148,17 @@ function viewBE(){
   var mk=ui.beMonth,be=beMonth(mk),p=bePayday(mk),b=S().be;
   var head='<div class="head"><div><h1>B-Active</h1><p>Your salary after PAYE, UIF and the loan, worked out from your payslip. Paid on the '+b.payDay+'th, or the working day before.</p></div>'+stepper('be',monthLabel(mk))+'</div>';
   var src=be.mode==='payslip'?'From your payslip':be.mode==='estimate'?'Estimated':'From your old sheet';
-  var hero='<div class="hero"><div><span class="lab">Net pay · '+src+'</span><span class="big-num red">'+R(be.net)+'</span><span class="sub">Lands '+fmtDY(p.date)+paydayNote(p)+'</span></div><div><span class="lab">Gross salary</span><span class="mid">'+R(be.gross)+'</span><span class="sub">'+'Basic '+R(be.basic)+(be.unpaid?' less '+R(be.unpaid)+' unpaid leave':'')+(be.overtime?' plus '+R(be.overtime)+' overtime':'')+'</span></div><div><span class="lab">Deductions</span><span class="mid">'+R(be.gross-be.net)+'</span><span class="sub">PAYE, UIF and loan</span></div></div>';
+  var hero='<div class="hero"><div><span class="lab">Net pay · '+src+'</span><span class="big-num '+sgn(be.net)+'">'+R(be.net)+'</span><span class="sub">Lands '+fmtDY(p.date)+paydayNote(p)+'</span></div><div><span class="lab">Gross salary</span><span class="mid in">'+R(be.gross)+'</span><span class="sub">'+'Basic '+R(be.basic)+(be.unpaid?' less '+R(be.unpaid)+' unpaid leave':'')+(be.overtime?' plus '+R(be.overtime)+' overtime':'')+'</span></div><div><span class="lab">Deductions</span><span class="mid out">'+R(be.gross-be.net)+'</span><span class="sub">PAYE, UIF and loan</span></div></div>';
   var rows='<div class="wf">'+
-    wfRow('Basic salary','',R(be.basic),'')+
+    wfRow('Basic salary','',R(be.basic),'','','in')+
     (be.unpaid||be.mode==='estimate'?wfRow('Unpaid leave',be.mode==='estimate'?'Daily rate is basic salary over 21.67 days':'',be.unpaid?R(be.unpaid):R(0),'','−'):'')+
     (be.overtime?wfRow('Overtime',be.mode==='estimate'?otFor(mk).map(function(o){return fmtD(o.date)+', '+o.hours+' h at '+multLabel(o.mult)}).join('; '):'From your payslip',R(be.overtime),'','+'):'')+
-    wfRow('Gross income','',R(be.gross),'tot')+
+    wfRow('Gross income','',R(be.gross),'tot','','in')+
     wfRow('PAYE tax',be.mode==='estimate'?'Your payslip rate, '+fmtPct(payeRate())+', on this month\'s salary':'',R(be.paye),'','−')+
     wfRow('UIF (employee)',be.mode==='estimate'?'Your payslip rate, '+fmtPct(uifRate())+', on this month\'s salary':'',R(be.uif),'','−')+
     wfRow('Loan repayment',be.after!=null?'Balance after this month '+R(be.after):'',R(be.loan),'','−')+
     (be.other?wfRow('Other deductions','',R(be.other),'','−'):'')+
-    wfRow('Net pay','',R(be.net),'tot final')+'</div>';
+    wfRow('Net pay','',R(be.net),'tot final','',sgn(be.net))+'</div>';
   var detail;
   if(be.mode==='legacy'){
     detail='<div class="card"><h2>'+monthLabel(mk)+'</h2><p class="note">'+(be.has?'This month comes from your old spreadsheet, where B-Active was recorded as gross income, with the loan and tax as separate expenses. Payslip-based figures start from '+monthLabel(b.from)+'.':'No B-Active income was recorded for this month in your spreadsheet.')+'</p></div>';
@@ -1153,7 +1176,7 @@ function viewBE(){
   }
   var shifts=otFor(mk),ot=ui.ot,otRate=ot.rate!==''?ot.rate:hourlyRate();
   var otCard='<div class="card"><h2>Overtime <small>Paid with '+monthLabel(mk)+' pay</small></h2>'+
-    (shifts.length?shifts.map(function(o){var arm=ui.armed==='o:'+o.id;return '<div class="mrow" style="grid-template-columns:96px minmax(0,1fr) auto auto"><div class="muted tnum" style="font-size:14px">'+fmtD(o.date)+'</div><div style="min-width:0"><div>'+o.hours+' h at '+multLabel(o.mult)+'</div><div class="note">'+R(o.rate)+' an hour'+(o.note?' · '+esc(o.note):'')+'</div></div><div class="tnum" style="font-weight:500">'+R(otAmount(o))+'</div><button class="btn small '+(arm?'danger':'ghost')+'" data-act="ot-del" data-id="'+o.id+'">'+(arm?'Sure?':'Delete')+'</button></div>'}).join(''):'<p class="note">No overtime planned for this pay month.</p>')+
+    (shifts.length?shifts.map(function(o){var arm=ui.armed==='o:'+o.id;return '<div class="mrow" style="grid-template-columns:96px minmax(0,1fr) auto auto"><div class="muted tnum" style="font-size:14px">'+fmtD(o.date)+'</div><div style="min-width:0"><div>'+o.hours+' h at '+multLabel(o.mult)+'</div><div class="note">'+R(o.rate)+' an hour'+(o.note?' · '+esc(o.note):'')+'</div></div><div class="tnum in" style="font-weight:500">'+R(otAmount(o))+'</div><button class="btn small '+(arm?'danger':'ghost')+'" data-act="ot-del" data-id="'+o.id+'">'+(arm?'Sure?':'Delete')+'</button></div>'}).join(''):'<p class="note">No overtime planned for this pay month.</p>')+
     (be.mode==='payslip'&&shifts.length?'<p class="note" style="margin-top:8px">This month has a saved payslip, so its own figures are used. Put the overtime pay on the payslip.</p>':'')+
     '<form class="form" data-form="ot" style="margin-top:14px">'+
     '<div class="fld"><label for="ot-date">Day worked</label><input id="ot-date" type="date" data-b="ot.date" value="'+esc(ot.date)+'" required></div>'+
@@ -1168,11 +1191,11 @@ function viewBE(){
   var L=b.loan,loanCard='';
   if(L&&+L.monthly&&+L.balance){
     var left=Math.ceil(L.balance/L.monthly);
-    loanCard='<div class="card"><h2>Employer loan</h2><div class="stats" style="margin:0;border:0;border-radius:0;background:none"><div class="stat" style="padding-left:0"><b class="red">'+R(L.balance)+'</b><span>Balance after '+monthLabel(L.asOf)+'</span></div><div class="stat"><b>'+R(L.monthly)+'</b><span>Per month</span></div></div><p class="note" style="margin-top:8px">At this pace the loan is cleared in about '+left+' month'+(left===1?'':'s')+' ('+monthLabel(addMonths(L.asOf,left))+'). Change the amounts in Setup.</p></div>';
+    loanCard='<div class="card"><h2>Employer loan</h2><div class="stats" style="margin:0;border:0;border-radius:0;background:none"><div class="stat" style="padding-left:0"><b>'+R(L.balance)+'</b><span>Balance after '+monthLabel(L.asOf)+'</span></div><div class="stat"><b class="out">'+R(L.monthly)+'</b><span>Per month</span></div></div><p class="note" style="margin-top:8px">At this pace the loan is cleared in about '+left+' month'+(left===1?'':'s')+' ('+monthLabel(addMonths(L.asOf,left))+'). Change the amounts in Setup.</p></div>';
   }
   var yr=ui.beYear,mons=[];for(var i=1;i<=12;i++)mons.push(yr+'-'+pad(i));
   var tg=0,tn=0;
-  var tbl='<div class="card"><h2>'+yr+' <span style="display:flex;gap:6px"><button class="btn icon small" data-act="be-year" data-dir="-1" aria-label="Previous year">&#8249;</button><button class="btn icon small" data-act="be-year" data-dir="1" aria-label="Next year">&#8250;</button></span></h2><div class="scroll"><table><tr><th>Month</th><th>Pay day</th><th class="r">Gross</th><th class="r">Net</th></tr>'+mons.map(function(m){var x=beMonth(m);var pd=bePayday(m);tg+=x.gross;tn+=x.net;return '<tr class="'+(m===mk?'cur':'')+'"><td><a href="#be-active" data-act="be-pick" data-m="'+m+'" style="text-decoration:none">'+MONL[mkParse(m).m-1]+'</a></td><td>'+fmtD(pd.date)+'</td><td class="r">'+(x.has?Rw(x.gross):'<span class="faint">none</span>')+'</td><td class="r">'+(x.has?Rw(x.net):'<span class="faint">none</span>')+'</td></tr>'}).join('')+'<tr><td><b>Year</b></td><td></td><td class="r"><b>'+Rw(tg)+'</b></td><td class="r"><b>'+Rw(tn)+'</b></td></tr></table></div><p class="note" style="margin-top:8px">Months after '+monthLabel(b.from)+' use your payslip as the base.</p></div>';
+  var tbl='<div class="card"><h2>'+yr+' <span style="display:flex;gap:6px"><button class="btn icon small" data-act="be-year" data-dir="-1" aria-label="Previous year">&#8249;</button><button class="btn icon small" data-act="be-year" data-dir="1" aria-label="Next year">&#8250;</button></span></h2><div class="scroll"><table><tr><th>Month</th><th>Pay day</th><th class="r">Gross</th><th class="r">Net</th></tr>'+mons.map(function(m){var x=beMonth(m);var pd=bePayday(m);tg+=x.gross;tn+=x.net;return '<tr class="'+(m===mk?'cur':'')+'"><td><a href="#be-active" data-act="be-pick" data-m="'+m+'" style="text-decoration:none">'+MONL[mkParse(m).m-1]+'</a></td><td>'+fmtD(pd.date)+'</td><td class="r in">'+(x.has?Rw(x.gross):'<span class="faint">none</span>')+'</td><td class="r in">'+(x.has?Rw(x.net):'<span class="faint">none</span>')+'</td></tr>'}).join('')+'<tr><td><b>Year</b></td><td></td><td class="r in"><b>'+Rw(tg)+'</b></td><td class="r in"><b>'+Rw(tn)+'</b></td></tr></table></div><p class="note" style="margin-top:8px">Months after '+monthLabel(b.from)+' use your payslip as the base.</p></div>';
   return head+hero+'<div class="grid2"><div class="stack">'+detail+otCard+loanCard+'</div><div class="stack">'+tbl+'</div></div>';
 }
 
@@ -1190,7 +1213,7 @@ function viewMoney(){
   var rec=s.alloc.recs;
   var inc=sum(ledgerFor(mk).filter(function(e){return e.kind==='income'&&counted(e)}),function(e){return +e.amount||0});
   var head='<div class="head"><div><h1>Money</h1><p>Expenses and extra income. Regular costs such as petrol are added for you.</p></div>'+stepper('money',monthLabel(mk))+'</div>';
-  var stats='<div class="stats" style="grid-template-columns:repeat(3,minmax(0,1fr))"><div class="stat"><b>'+R(s.spend)+'</b><span>Spending</span></div><div class="stat"><b>'+R(inc)+'</b><span>Extra income</span></div><div class="stat"><b>'+R(sum(rec,function(r){return r.eff}))+'</b><span>Regular costs</span></div></div>';
+  var stats='<div class="stats" style="grid-template-columns:repeat(3,minmax(0,1fr))"><div class="stat"><b class="out">'+R(s.spend)+'</b><span>Spending</span></div><div class="stat"><b class="in">'+R(inc)+'</b><span>Extra income</span></div><div class="stat"><b class="out">'+R(sum(rec,function(r){return r.eff}))+'</b><span>Regular costs</span></div></div>';
   var presets=S().presets.map(function(p){return '<button class="chip" type="button" data-act="preset" data-id="'+p.id+'">'+esc(p.label)+(p.amount?' · '+R(p.amount):'')+'</button>'}).join('');
   var cats=allCategories();
   var form='<div class="card"><h2>'+(f.id?'Edit entry':'Add money in or out')+'</h2>'+
@@ -1207,9 +1230,9 @@ function viewMoney(){
     '<div class="actions"><button class="btn primary" type="submit">'+(f.id?'Save changes':(f.kind==='income'?'Add income':'Add expense'))+'</button>'+(f.id?'<button class="btn" type="button" data-act="m-cancel">Cancel</button>':'')+'</div></form></div>';
   var rows=led.map(function(e){
     var arm=ui.armed==='e:'+e.id;
-    return '<div class="mrow"><div class="when muted tnum" style="font-size:14px">'+fmtDs(e.date)+'</div><div style="min-width:0"><div>'+esc(e.label)+'</div><div class="note">'+esc(e.category||'Other')+(e.kind==='income'?(e.taxable===false?' · income, not taxed':' · income'):'')+(isEstimate(e)?' · <span class="tag">Estimate, not counted</span>':'')+'</div></div><div class="tnum" style="font-weight:500;'+(e.kind==='income'?'color:var(--ok)':(isEstimate(e)?'color:var(--faint);text-decoration:line-through':''))+'">'+(e.kind==='income'?'+':'')+R(e.amount)+'</div><div class="acts"><button class="btn small ghost" data-act="m-edit" data-id="'+e.id+'">Edit</button><button class="btn small '+(arm?'danger':'ghost')+'" data-act="m-del" data-id="'+e.id+'">'+(arm?'Sure?':'Delete')+'</button></div></div>';
+    return '<div class="mrow"><div class="when muted tnum" style="font-size:14px">'+fmtDs(e.date)+'</div><div style="min-width:0"><div>'+esc(e.label)+'</div><div class="note">'+esc(e.category||'Other')+(e.kind==='income'?(e.taxable===false?' · income, not taxed':' · income'):'')+(isEstimate(e)?' · <span class="tag">Estimate, not counted</span>':'')+'</div></div><div class="tnum'+(isEstimate(e)?'':(e.kind==='income'?' in':' out'))+'" style="font-weight:500;'+(isEstimate(e)?'color:var(--faint);text-decoration:line-through':'')+'">'+(e.kind==='income'?'+':'\u2212')+R(e.amount)+'</div><div class="acts"><button class="btn small ghost" data-act="m-edit" data-id="'+e.id+'">Edit</button><button class="btn small '+(arm?'danger':'ghost')+'" data-act="m-del" data-id="'+e.id+'">'+(arm?'Sure?':'Delete')+'</button></div></div>';
   }).join('');
-  var recRows=rec.map(function(r){return '<div class="mrow" style="grid-template-columns:62px minmax(0,1fr) auto"><div><span class="tag">Monthly</span></div><div style="min-width:0"><div>'+esc(r.label)+'</div><div class="note">'+esc(r.category||'Other')+(r.per==='week'?' · '+R(r.base)+' a week':'')+(r.actual?' · '+R(r.actual)+' logged so far':'')+(r.pct?' · '+r.pct+'% of B-Active':'')+'</div></div><div class="tnum" style="font-weight:500">'+R(r.eff)+'</div></div>'}).join('');
+  var recRows=rec.map(function(r){return '<div class="mrow" style="grid-template-columns:62px minmax(0,1fr) auto"><div><span class="tag">Monthly</span></div><div style="min-width:0"><div>'+esc(r.label)+'</div><div class="note">'+esc(r.category||'Other')+(r.per==='week'?' · '+R(r.base)+' a week':'')+(r.actual?' · '+R(r.actual)+' logged so far':'')+(r.pct?' · '+r.pct+'% of B-Active':'')+'</div></div><div class="tnum out" style="font-weight:500">\u2212'+R(r.eff)+'</div></div>'}).join('');
   var list='<div class="card"><h2>'+monthLabel(mk)+' <small>'+(led.length+rec.length)+' entries</small></h2>'+((led.length||rec.length)?rows+recRows:'<div class="empty"><b>Nothing logged this month</b>Add an expense, or tap Quick add and say it out loud.</div>')+'<p class="note" style="margin-top:12px">Regular costs are managed in Setup.</p></div>';
   return head+stats+'<div class="grid2"><div class="stack">'+form+'</div><div class="stack">'+list+'</div></div>';
 }
@@ -1225,7 +1248,7 @@ function viewSetup(){
     '<p class="note" style="margin-top:10px">A rate change only affects classes you add from now on. Classes already logged keep the rate they were added at.</p></div>';
   var tt='<div class="card"><h2>Weekly timetable <small>'+st.timetable.length+' classes · '+R(sum(st.timetable,function(t){return (classById(t.classId)||{rate:0}).rate}))+' a week</small></h2>'+
     [1,2,3,4,5,6,0].map(function(d){var es=st.timetable.filter(function(t){return t.dow===d}).sort(function(a,b){return mins(a.start)-mins(b.start)});
-      return '<div class="tt-day"><b>'+DOW[d]+'</b><div class="chips">'+(es.length?es.map(function(t){var c=classById(t.classId);return '<span class="chip"><i class="dot" style="background:'+esc(c?c.color:'#888')+'"></i>'+esc(t.start)+' '+esc(c?c.name:'Class')+' <button class="btn small ghost" style="min-height:22px;padding:0 6px;border:0" data-act="tt-del" data-id="'+t.id+'" aria-label="Remove">&times;</button></span>'}).join(''):'<span class="faint">Off</span>')+'</div></div>'}).join('')+
+      return '<div class="tt-day"><b>'+DOW[d]+'</b><div class="chips">'+(es.length?es.map(function(t){var c=classById(t.classId);return '<span class="chip"><i class="dot" style="background:'+esc(safeColor(c?c.color:'#6b717b'))+'"></i>'+esc(t.start)+' '+esc(c?c.name:'Class')+' <button class="btn small ghost" style="min-height:22px;padding:0 6px;border:0" data-act="tt-del" data-id="'+t.id+'" aria-label="Remove">&times;</button></span>'}).join(''):'<span class="faint">Off</span>')+'</div></div>'}).join('')+
     '<form class="form" data-form="ntt" style="margin-top:14px"><div class="fld"><label for="tt-d">Day</label><select id="tt-d" data-b="ntt.dow" data-num="1">'+[1,2,3,4,5,6,0].map(function(d){return '<option value="'+d+'"'+(ui.ntt.dow===d?' selected':'')+'>'+DOWL[d]+'</option>'}).join('')+'</select></div><div class="fld"><label for="tt-c">Class</label><select id="tt-c" data-b="ntt.classId">'+st.classes.filter(function(c){return c.active}).map(function(c){return '<option value="'+esc(c.id)+'"'+(ui.ntt.classId===c.id?' selected':'')+'>'+esc(c.name)+'</option>'}).join('')+'</select></div><div class="fld"><label for="tt-s">Starts</label><input id="tt-s" type="time" data-b="ntt.start" value="'+esc(ui.ntt.start)+'" required></div><div class="actions"><button class="btn" type="submit">Add to week</button></div></form>'+
     '<p class="note" style="margin-top:10px">Your repeating week. Change it here, then use Fill from weekly timetable on the Virgin Active tab to add future invoice periods.</p></div>';
   var b=st.be;
@@ -1273,7 +1296,7 @@ function viewVoice(){
   var found='';
   if(items){
     var ok=items.filter(function(i){return !i.problem});
-    found='<div class="found">'+items.map(function(it,i){return '<div class="it'+(it.problem?' bad':'')+'"><div>'+(it.type==='overtime'?'<b style="font-weight:500">Overtime</b> <span class="tag">B-Active</span><small>'+fmtD(it.date)+' · '+it.hours+' h at '+multLabel(it.mult)+' · '+R(otAmount(it))+' · paid with '+monthLabel(it.paidIn)+'</small>':it.type==='class'?chip(classById(it.classId)||{name:'Class',color:'#888'})+' <b style="font-weight:500">'+fmtD(it.date)+', '+esc(it.start)+' to '+esc(it.end)+'</b><small>'+R(it.rate)+(it.weeks>1?' · every week for '+it.weeks+' weeks':'')+'</small>':'<b style="font-weight:500">'+esc(it.label)+'</b> <span class="tag">'+(it.type==='income'?'Income':esc(it.category||'Other'))+'</span><small>'+fmtD(it.date)+' · '+(it.type==='income'?'+':'')+R(it.amount)+'</small>')+(it.problem?'<small>'+esc(it.problem)+'</small>':'')+'</div><button class="btn small ghost" data-act="v-drop" data-i="'+i+'">Remove</button></div>'}).join('')+'</div>'+
+    found='<div class="found">'+items.map(function(it,i){return '<div class="it'+(it.problem?' bad':'')+'"><div>'+(it.type==='overtime'?'<b style="font-weight:500">Overtime</b> <span class="tag">B-Active</span><small>'+fmtD(it.date)+' · '+it.hours+' h at '+multLabel(it.mult)+' · <span class="in">+'+R(otAmount(it))+'</span> · paid with '+monthLabel(it.paidIn)+'</small>':it.type==='class'?chip(classById(it.classId)||{name:'Class',color:'#888'})+' <b style="font-weight:500">'+fmtD(it.date)+', '+esc(it.start)+' to '+esc(it.end)+'</b><small><span class="in">+'+R(it.rate)+'</span>'+(it.weeks>1?' · every week for '+it.weeks+' weeks':'')+'</small>':'<b style="font-weight:500">'+esc(it.label)+'</b> <span class="tag">'+(it.type==='income'?'Income':esc(it.category||'Other'))+'</span><small>'+fmtD(it.date)+' · <span class="'+(it.type==='income'?'in">+':'out">\u2212')+R(it.amount)+'</span></small>')+(it.problem?'<small>'+esc(it.problem)+'</small>':'')+'</div><button class="btn small ghost" data-act="v-drop" data-i="'+i+'">Remove</button></div>'}).join('')+'</div>'+
       (items.length?'<div class="chips"><button class="btn primary" data-act="v-add"'+(ok.length?'':' disabled')+'>Add '+ok.length+' item'+(ok.length===1?'':'s')+'</button><button class="btn" data-act="v-clear">Start again</button></div>':'<p class="note">Nothing found. Try naming a class with a day and time, or an amount with what it was for.</p>');
   }
   return '<div class="scrim" data-act="v-scrim"><div class="sheet" role="dialog" aria-label="Quick add"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h2>Quick add</h2><button class="btn small" data-act="v-close">Close</button></div>'+
@@ -1371,7 +1394,7 @@ document.addEventListener('submit',function(e){
     addEntry({id:uid(),date:q.date,kind:'expense',label:q.label.trim(),category:rr?(rr.category||rr.label):'Other',amount:+q.amount});
     toast('Added '+q.label.trim()+' · '+R(+q.amount));resetWk(true);render();
   }
-  else if(f==='nc'){var n=ui.nc;var id=(n.name||'c').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')+'-'+uid().slice(0,3);S().classes.push({id:id,name:n.name.trim(),venue:(n.venue||'').trim(),rate:+n.rate||0,color:['#e3262d','#ededf0','#f0a43a','#ff7aa8','#6fb3e0','#59c2b0','#b79cf0'][S().classes.length%7],active:true});ui.nc={name:'',venue:'',rate:230};markDirty('settings/main');toast('Class added');render()}
+  else if(f==='nc'){var n=ui.nc;var id=(n.name||'c').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')+'-'+uid().slice(0,3);S().classes.push({id:id,name:n.name.trim(),venue:(n.venue||'').trim(),rate:+n.rate||0,color:CLASS_PALETTE[S().classes.length%CLASS_PALETTE.length],active:true});ui.nc={name:'',venue:'',rate:230};markDirty('settings/main');toast('Class added');render()}
   else if(f==='ntt'){var t=ui.ntt;var cid=t.classId||(S().classes.filter(function(c){return c.active})[0]||{}).id;if(!cid)return;S().timetable.push({id:uid(),dow:+t.dow,classId:cid,start:t.start});markDirty('settings/main');toast('Added to your week');render()}
   else if(f==='nrec'){var r=ui.nrec;S().recurring.push({id:uid(),label:r.label.trim(),category:r.category.trim()||'Other',amount:+r.amount||0,per:r.per==='week'?'week':'month',from:r.from||mkOf(today),until:''});ui.nrec={label:'',category:'',amount:'',per:'month',pct:'',from:'',until:''};markDirty('settings/main');toast('Monthly bill added');render()}
   else if(f==='npre'){var p=ui.npre;S().presets.push({id:uid(),label:p.label.trim(),category:p.category.trim()||p.label.trim(),amount:p.amount===''?'':+p.amount});ui.npre={label:'',category:'',amount:''};markDirty('settings/main');toast('Option added');render()}
