@@ -346,11 +346,21 @@ var vaPayday=function(mk){return adjustPayday(mk+'-'+pad(lastDay(mk)),'The last 
 var bePayday=function(mk){var pd=Math.min(28,Math.max(1,+state.settings.be.payDay||25));return adjustPayday(mk+'-'+pad(pd),'The '+pd+'th')};
 
 /* ================================================================== tax */
-/* SARS 2026/27 (1 Mar 2026 to 28 Feb 2027). Checked against the B-Active October 2026 payslip. */
-var BRACKETS=[[0,.18],[245100,.26],[383100,.31],[530200,.36],[695800,.39],[887000,.41],[1878600,.45]];
-var REBATE=17820;
-function annualTax(a){var t=0;for(var i=0;i<BRACKETS.length;i++){var lo=BRACKETS[i][0],hi=i+1<BRACKETS.length?BRACKETS[i+1][0]:Infinity;if(a>lo)t+=(Math.min(a,hi)-lo)*BRACKETS[i][1]}return t}
-function payeMonthly(gross){return r2(Math.max(annualTax(gross*12)-REBATE,0)/12)}
+/* Tax is never taken from tax tables. It is worked out from your payslip:
+   PAYE and UIF rates are the latest payslip's PAYE and UIF divided by its gross pay. */
+function slipRates(){
+  var ps=S().be.payslips||{},ks=Object.keys(ps).sort().reverse();
+  for(var i=0;i<ks.length;i++){
+    var p=ps[ks[i]],gross=(+p.basic||0)-(+p.unpaid||0);
+    if(gross>0&&p.paye!==undefined&&p.paye!==null&&p.paye!=='')return{mk:ks[i],gross:r2(gross),paye:+p.paye||0,uif:+p.uif||0,payeRate:(+p.paye||0)/gross,uifRate:(+p.uif||0)/gross};
+  }
+  return null;
+}
+var ownRate=function(v){return v!==''&&v!==null&&v!==undefined&&isFinite(+v)&&+v>=0};
+function payeRate(){var o=S().be.payePct;if(ownRate(o))return +o/100;var r=slipRates();return r?r.payeRate:0}
+function uifRate(){var o=S().be.uifPct;if(ownRate(o))return +o/100;var r=slipRates();return r?r.uifRate:0}
+function vaTaxRate(){var o=S().tax.vaPct;if(ownRate(o))return +o/100;return payeRate()}
+function fmtPct(r){return String(Math.round(r*10000)/100)+'%'}
 
 /* ================================================================ state */
 function defaultSettings(){return{
@@ -363,8 +373,8 @@ function defaultSettings(){return{
     {id:'melrose-shape',name:'Melrose Shape',venue:'Melrose Arch',rate:230,color:'#6fb3e0',active:true}
   ],
   timetable:[],
-  be:{basic:0,payDay:25,from:'2026-10',uifPct:1,uifCap:177.12,loan:{monthly:0,balance:0,asOf:''},legacy:{},unpaidDays:{},payslips:{}},
-  tax:{vaSetAside:true},
+  be:{basic:0,payDay:25,from:'2026-10',uifPct:'',payePct:'',loan:{monthly:0,balance:0,asOf:''},legacy:{},unpaidDays:{},payslips:{}},
+  tax:{vaSetAside:true,vaPct:''},
   recurring:[],
   presets:[
     {id:'p1',label:'Travel',category:'Travel',amount:''},
@@ -389,7 +399,7 @@ function applySettings(d){
   s.be=Object.assign(defaultSettings().be,d.be||{});
   s.be.loan=Object.assign({monthly:0,balance:0,asOf:''},(d.be&&d.be.loan)||{});
   s.be.legacy=s.be.legacy||{};s.be.unpaidDays=s.be.unpaidDays||{};s.be.payslips=s.be.payslips||{};
-  s.tax=Object.assign({vaSetAside:true},d.tax||{});
+  s.tax=Object.assign({vaSetAside:true,vaPct:''},d.tax||{});
   ['classes','timetable','recurring','presets','extraHolidays','leave'].forEach(function(k){if(!Array.isArray(s[k]))s[k]=def[k]});
   if(!s.cutoffs||typeof s.cutoffs!=='object')s.cutoffs={};
   s.savings=Object.assign({monthly:0,from:'',months:{}},d.savings||{});if(!s.savings.months)s.savings.months={};
@@ -500,6 +510,9 @@ function sessionIndex(){
 var sessionsFor=function(mk){return (sessionIndex()[mk]||[]).slice().sort(cmpSession)};
 var leaveOn=function(ds){return (S().leave||[]).filter(function(l){return ds>=l.from&&ds<=l.to})[0]||null};
 var ledgerFor=function(mk){return state.ledger[mk]||[]};
+/* Tax lines from before payslip figures start were estimates, so they are never counted. */
+var isEstimate=function(e){return e.estimate===true||(e.kind!=='income'&&catKey(e.category)==='tax'&&mkOf(e.date)<S().be.from)};
+var counted=function(e){return !isEstimate(e)};
 function addSession(s){var k=payMonthOf(s.date);(state.periods[k]=state.periods[k]||[]).push(s);markDirty('periods/'+k)}
 function findSession(id){for(var k in state.periods){var i=state.periods[k].findIndex(function(s){return s.id===id});if(i>=0)return{k:k,i:i,s:state.periods[k][i]}}return null}
 function removeSession(id){var f=findSession(id);if(!f)return;state.periods[f.k].splice(f.i,1);markDirty('periods/'+f.k)}
@@ -525,14 +538,13 @@ function beMonth(mk){
     return{mode:'payslip',basic:+p.basic||0,unpaid:+p.unpaid||0,gross:gross,uif:+p.uif||0,paye:+p.paye||0,loan:+p.loan||0,other:oth,net:net,after:mk===b.loan.asOf?+b.loan.balance:loanFor(mk).after,has:true};
   }
   var d=+b.unpaidDays[mk]||0;var unpaid=r2(b.basic/(260/12)*d);var gr=r2(b.basic-unpaid);
-  var uif=r2(Math.min(gr*(b.uifPct/100),+b.uifCap||Infinity));
-  var paye=payeMonthly(gr);var L=loanFor(mk);
+  var uif=r2(gr*uifRate());
+  var paye=r2(gr*payeRate());var L=loanFor(mk);
   return{mode:'estimate',basic:+b.basic,unpaid:unpaid,days:d,gross:gr,uif:uif,paye:paye,loan:L.pay,other:0,net:r2(gr-uif-paye-L.pay),after:L.after,has:true};
 }
 function vaTaxSetAside(mk,vaIncome){
   var b=S().be;if(mk<b.from||!S().tax.vaSetAside||vaIncome<=0)return 0;
-  var ba=(+b.basic||0)*12,va=vaIncome*12;
-  return r2(Math.max(annualTax(ba+va)-annualTax(ba),0)/12);
+  return r2(vaIncome*vaTaxRate());
 }
 function recurringFor(mk){
   return S().recurring.filter(function(r){return mk>=r.from&&(!r.until||mk<=r.until)}).map(function(r){var a=+r.amount||0;var m=r.per==='week'?Math.round(a*lastDay(mk)/7):a;return Object.assign({},r,{amount:m,base:a,recurring:true,kind:'expense'})});
@@ -552,7 +564,7 @@ function allocate(recs,entries){
 function summary(mk){
   var ses=sessionsFor(mk),va=sum(ses,function(s){return +s.rate||0});
   var vaEarned=sum(ses.filter(function(s){return s.date<=today}),function(s){return +s.rate||0});
-  var be=beMonth(mk),led=ledgerFor(mk);
+  var be=beMonth(mk),led=ledgerFor(mk).filter(counted);
   var extra=sum(led.filter(function(e){return e.kind==='income'}),function(e){return +e.amount||0});
   var al=allocate(recurringFor(mk),led.filter(function(e){return e.kind!=='income'}));
   var spendE=al.loose.concat(al.recs.map(function(r){return Object.assign({},r,{amount:r.eff})}));
@@ -584,7 +596,7 @@ function resetVa(keep){
 }
 function resetMoney(kind){ui.money={id:null,taxable:true,kind:kind||'expense',date:(mkOf(today)===ui.moneyMonth?today:ui.moneyMonth+'-01'),label:'',category:'',amount:'',error:''}}
 resetVa();resetMoney();
-ui.week=mondayOf(today);ui.taxYear=Math.max(2026,taxYearOf(mkOf(today)));resetWk();
+ui.week=mondayOf(today);ui.taxYear=Math.max(2026,+today.slice(0,4));resetWk();
 
 /* ================================================================= views */
 var h=function(s){return s};
@@ -626,11 +638,11 @@ function wfCard(mk){
     wfRow('B-Active salary',be.mode==='legacy'?'As recorded in your old sheet, before payslip deductions':(be.unpaid?'Basic '+R(be.basic)+' less unpaid leave '+R(be.unpaid):'Basic salary')+' · paid '+fmtD(bp.date),R(be.gross),'')+
     (s.extra?wfRow('Extra income','',R(s.extra),'','+'):'')+
     wfRow('Combined gross income','',R(s.gross),'tot')+
-    (be.paye?wfRow('PAYE tax','Taken from your B-Active pay',R(be.paye),'','−'):'')+
-    (be.uif?wfRow('UIF','1% of your B-Active pay, capped',R(be.uif),'','−'):'')+
+    (be.paye?wfRow('PAYE tax',be.mode==='estimate'?'Your payslip rate, '+fmtPct(payeRate())+', on this month\'s salary':'From your payslip',R(be.paye),'','−'):'')+
+    (be.uif?wfRow('UIF',be.mode==='estimate'?'Your payslip rate, '+fmtPct(uifRate())+', on this month\'s salary':'From your payslip',R(be.uif),'','−'):'')+
     (be.loan?wfRow('B-Active loan repayment',be.after!=null?'Balance after this payment '+R(be.after):'',R(be.loan),'','−'):'')+
     (be.other?wfRow('Other payslip deductions','',R(be.other),'','−'):'')+
-    (s.tax?wfRow('Tax set aside on Virgin Active','Estimate for SARS. This income has no tax taken off at source.',R(s.tax),'','−'):'')+
+    (s.tax?wfRow('Tax set aside on Virgin Active','At '+fmtPct(vaTaxRate())+' of this income. No tax is taken off it at source.',R(s.tax),'','−'):'')+
     wfRow('Take-home','',R(s.takeHome),'tot')+
     wfRow('Expenses','Petrol, food, incidentals and everything you logged',R(s.spend),'','−')+
     wfRow('Usable after deductions and expenses','',R(s.usable),s.savings?'tot':'tot final')+
@@ -654,14 +666,14 @@ function viewOverview(){
   var weekly=S().recurring.filter(function(r){return r.per==='week'&&mk>=r.from&&(!r.until||mk<=r.until)});
   var head='<div class="head"><div><h1>Overview</h1><p>'+(mk===mkOf(today)?'What you will have earned by the end of '+MONL[mkParse(mk).m-1]+'. ':'')+'Tap a square to open it.</p></div>'+stepper('overview',monthLabel(mk))+'</div>';
   var band='<div class="combined"><div class="cb"><span class="lab">Combined gross by '+eom+'</span><span class="big-num">'+R(s.gross)+'</span><span class="sub">Virgin Active '+R(s.va)+' + B-Active '+R(s.be.gross)+(s.extra?' + extra '+R(s.extra):'')+'</span></div><div class="cb"><span class="lab">Usable by '+eom+', after deductions and expenses</span><span class="big-num red">'+Rw(s.usable)+'</span><span class="sub">Less deductions '+Rw(s.deductions)+' and expenses '+Rw(s.spend)+'</span></div></div>';
-  var wk=weekData(mondayOf(today)),ty=ui.taxYear,tx=taxYear(ty);
+  var wk=weekData(mondayOf(today));
   var tiles='<div class="tiles">'+
     tile('virgin-active','Virgin Active',R(s.va),(s.ses.length?'<b>'+done+'</b> class'+(done===1?'':'es')+' done'+(togo?' · '+togo+' to go':''):'No classes yet')+'<br>Paid '+fmtD(vp.date),'income')+
     tile('be-active','B-Active salary',s.be.has?R(s.be.net):'None','Paid '+fmtD(bp.date),'income')+
     tile('money','Expenses',R(s.spend),weekly.length?esc(weekly.map(function(r){return r.label}).join(', '))+' · '+R(sum(weekly,function(r){return +r.amount||0}))+' a week':'This month')+
     tile('week','This week',wk.recs.length?R(wk.left):'Set up',wk.recs.length?(wk.left<0?'Over by '+R(-wk.left)+' · allowance '+R(wk.budget):'left of '+R(wk.budget)+' · spent '+R(wk.spent)):'Add a weekly allowance in Setup')+
     tile('savings','Savings',R(s.savings),savedDone(mk)?'&#10003; Saved this month':(s.savings?'Not saved yet · saved so far '+R(savedTotal()):'Not set'))+
-    tile('tax','Tax',Rw(tx.still),'still to put aside for '+ty+'/'+String(ty+1).slice(2))+
+    tile('tax','Tax',Rw(s.be.paye+s.tax),'PAYE '+Rw(s.be.paye)+(s.tax?' · put aside '+Rw(s.tax):''))+
     tile('forecast','Forecast',String(mkParse(mk).y),'Every month of the year')+
     tile('setup','Setup',String(S().timetable.length),'classes a week, rates and leave')+
     '</div>';
@@ -714,7 +726,7 @@ function weekData(monday){
   var catchAll=recs.filter(function(r){return r.catchAll})[0];
   var ks=[mkOf(monday),mkOf(end)].filter(function(v,i,a){return a.indexOf(v)===i});
   var entries=[];
-  ks.forEach(function(k){(state.ledger[k]||[]).forEach(function(e){if(e.kind!=='income'&&e.date>=monday&&e.date<=end)entries.push(e)})});
+  ks.forEach(function(k){(state.ledger[k]||[]).forEach(function(e){if(e.kind!=='income'&&e.date>=monday&&e.date<=end&&counted(e))entries.push(e)})});
   entries.sort(function(a,b){return a.date<b.date?1:a.date>b.date?-1:0});
   var counts={};
   entries.forEach(function(e){
@@ -747,47 +759,37 @@ function viewWeek(){
   return head+hero+'<div class="grid2"><div class="stack">'+bars+form+'</div><div class="stack">'+list+'</div></div>';
 }
 
-/* ---------- tax */
-function taxYearOf(mk){var p=mkParse(mk);return p.m>=3?p.y:p.y-1}
+/* ---------- tax (from your payslip) */
 function taxpotDone(mk){var m=(S().taxpot.months||{})[mk];return !!(m&&m.done)}
-function taxYear(y){
-  var rows=[],t={va:0,be:0,ex:0,paye:0,logged:0,pot:0};
-  for(var i=0;i<12;i++){
-    var mk=addMonths(y+'-03',i),s=summary(mk),be=s.be;
-    var paye=be.mode==='legacy'?(be.has?payeMonthly(be.gross):0):be.paye;
-    var logged=sum(ledgerFor(mk).filter(function(e){return e.kind!=='income'&&catKey(e.category)==='tax'}),function(e){return +e.amount||0});
-    var done=taxpotDone(mk);
-    var exT=sum(ledgerFor(mk).filter(function(e){return e.kind==='income'&&e.taxable!==false}),function(e){return +e.amount||0});
-    t.va+=s.va;t.be+=be.gross;t.ex+=exT;t.paye+=paye;t.logged+=logged;if(done)t.pot+=s.tax;
-    rows.push({mk:mk,va:s.va,paye:paye,logged:logged,sug:s.tax,done:done});
+function taxRows(y){
+  var rows=[];
+  for(var i=1;i<=12;i++){
+    var mk=y+'-'+pad(i),s=summary(mk),be=s.be;
+    rows.push({mk:mk,mode:be.mode,paye:be.mode==='legacy'?null:be.paye,va:s.va,sug:s.tax,done:taxpotDone(mk)});
   }
-  var income=t.va+t.be+t.ex,before=annualTax(income),due=r2(Math.max(before-REBATE,0));
-  var owed=r2(Math.max(due-t.paye,0)),setAside=r2(t.logged+t.pot);
-  return{y:y,rows:rows,t:t,income:income,before:r2(before),due:due,owed:owed,setAside:setAside,still:r2(Math.max(owed-setAside,0))};
+  return rows;
+}
+function taxDueNow(){
+  var from=S().be.from,cur=mkOf(today),t=0,m=from;
+  if(!from||!S().tax.vaSetAside)return 0;
+  for(var i=0;i<60&&m<=cur;i++){if(!taxpotDone(m))t+=summary(m).tax;m=addMonths(m,1)}
+  return r2(t);
 }
 function viewTax(){
-  var y=ui.taxYear,d=taxYear(y),lab=y+'/'+String(y+1).slice(2);
-  var head='<div class="head"><div><h1>Tax</h1><p>Virgin Active takes no tax off, so this estimates what you will owe SARS for the tax year, 1 March to the end of February.</p></div><div class="stepper"><button class="btn icon" data-act="tax-year" data-dir="-1" aria-label="Previous tax year"'+(y<=2026?' disabled':'')+'>&#8249;</button><span class="cur">'+lab+'</span><button class="btn icon" data-act="tax-year" data-dir="1" aria-label="Next tax year">&#8250;</button></div></div>';
-  var hero='<div class="hero"><div><span class="lab">Still to put aside</span><span class="big-num red">'+Rw(d.still)+'</span><span class="sub">Estimated owed, less what you have set aside or paid</span></div><div><span class="lab">Owed to SARS</span><span class="mid">'+Rw(d.owed)+'</span><span class="sub">After PAYE already taken</span></div><div><span class="lab">Set aside or paid</span><span class="mid">'+Rw(d.setAside)+'</span><span class="sub">Ticks plus Tax entries</span></div></div>';
-  var wf='<div class="card"><h2>How it works out <small>'+lab+' estimate</small></h2><div class="wf">'+
-    wfRow('Virgin Active income','Includes classes still forecast',Rw(d.t.va),'')+
-    wfRow('B-Active salary (gross)','',Rw(d.t.be),'')+
-    (d.t.ex?wfRow('Extra income that is taxable','',Rw(d.t.ex),'','+'):'')+
-    wfRow('Income for the year','',Rw(d.income),'tot')+
-    wfRow('Tax on that income','Using the 2026/27 SARS tables',Rw(d.before),'')+
-    wfRow('Primary rebate','',Rw(REBATE),'','−')+
-    wfRow('Tax for the year','',Rw(d.due),'tot')+
-    wfRow('PAYE B-Active already took','Worked out from salary for months without a payslip',Rw(d.t.paye),'','−')+
-    wfRow('Owed to SARS','',Rw(d.owed),'tot')+
-    wfRow('Set aside or paid so far','Your ticks plus anything logged as Tax',Rw(d.setAside),'','−')+
-    wfRow('Still to put aside','',Rw(d.still),'tot final')+'</div></div>';
-  var rows=d.rows.map(function(r){
-    var cell=r.sug>0?tickBtn(r.mk,r.done,'tax-done','Set aside','Not yet'):(r.logged>0?'<span class="muted">'+Rw(r.logged)+' logged as Tax</span>':'<span class="faint">none</span>');
-    return '<div class="mrow" style="grid-template-columns:100px minmax(0,1fr) auto"><div'+(r.mk===mkOf(today)?' style="font-weight:600"':'')+'>'+MONL[mkParse(r.mk).m-1]+' '+mkParse(r.mk).y+'</div><div class="note">'+(r.va?'Virgin Active '+Rw(r.va)+(r.sug>0?' · put aside '+Rw(r.sug):''):'No Virgin Active income')+'</div><div>'+cell+'</div></div>';
+  var y=ui.taxYear,rows=taxRows(y),r=slipRates(),pr=payeRate(),vr=vaTaxRate(),st=S();
+  var head='<div class="head"><div><h1>Tax</h1><p>Worked out from your payslip, not from tax tables.</p></div><div class="stepper"><button class="btn icon" data-act="tax-year" data-dir="-1" aria-label="Previous year"'+(y<=2026?' disabled':'')+'>&#8249;</button><span class="cur">'+y+'</span><button class="btn icon" data-act="tax-year" data-dir="1" aria-label="Next year">&#8250;</button></div></div>';
+  var hero='<div class="hero"><div><span class="lab">To put aside now</span><span class="big-num red">'+Rw(taxDueNow())+'</span><span class="sub">'+(st.tax.vaSetAside?'Tax on Virgin Active income for months you have not ticked':'Turned off in Setup')+'</span></div>'+
+    '<div><span class="lab">Payslip tax rate</span><span class="mid">'+fmtPct(pr)+'</span><span class="sub">'+(ownRate(st.be.payePct)?'Your own rate':(r?'PAYE divided by gross, '+monthLabel(r.mk):'Add a payslip'))+'</span></div>'+
+    '<div><span class="lab">Virgin Active rate</span><span class="mid">'+fmtPct(vr)+'</span><span class="sub">'+(ownRate(st.tax.vaPct)?'Your own rate':'Same as your payslip')+'</span></div></div>';
+  var how=r?'<div class="wf">'+wfRow('Latest payslip','',monthLabel(r.mk),'')+wfRow('Gross pay','After any unpaid leave',R(r.gross),'')+wfRow('PAYE taken','',R(r.paye),'','−')+wfRow('UIF taken','',R(r.uif),'','−')+wfRow('Payslip tax rate','PAYE divided by gross pay',fmtPct(r.payeRate),'tot')+'</div>':'<div class="empty"><b>No payslip yet</b>On the B-Active page, take a photo of your payslip or enter its figures. Your tax rate is worked out from it.</div>';
+  var rowHtml=rows.map(function(x){
+    var cur=x.mk===mkOf(today);
+    var paye=x.paye===null?'<span class="faint">n/a</span>':(x.mode==='estimate'?'<span class="muted">about '+Rw(x.paye)+'</span>':Rw(x.paye));
+    return '<tr'+(cur?' class="cur"':'')+'><td>'+MONL[mkParse(x.mk).m-1]+'</td><td class="r">'+paye+'</td><td class="r">'+Rw(x.va)+'</td><td class="r">'+(x.sug>0?Rw(x.sug):'<span class="faint">none</span>')+'</td><td class="r">'+(x.sug>0?tickBtn(x.mk,x.done,'tax-done','Done','Due'):'')+'</td></tr>';
   }).join('');
-  var months='<div class="card"><h2>Month by month <small>Tick when the money is moved</small></h2>'+rows+'<p class="note" style="margin-top:12px">The monthly amount is the extra tax this month’s Virgin Active income adds on top of your salary. Months before your payslip figures start show what you logged as Tax in your old sheet.</p></div>';
-  var note='<div class="card"><h2>Worth knowing</h2><div class="note" style="display:flex;flex-direction:column;gap:8px"><p>This is an estimate, not tax advice. It does not include anything that could lower your tax, such as business travel, retirement savings or medical credits. A tax practitioner can check it.</p><p>People paid without tax taken off normally pay provisional tax twice a year, around the end of August and the end of February.</p></div></div>';
-  return head+hero+'<div class="grid2"><div class="stack">'+wf+'</div><div class="stack">'+months+note+'</div></div>';
+  var months='<div class="card"><h2>Month by month <small>'+y+'</small></h2><div class="scroll"><table><tr><th>Month</th><th class="r">PAYE</th><th class="r">Virgin Active</th><th class="r">Put aside</th><th class="r">Moved</th></tr>'+rowHtml+'</table></div><p class="note" style="margin-top:10px">PAYE is what B-Active takes. Put aside is the tax rate on your Virgin Active income. Tick a month once the money has moved. Months before your payslip figures start are not included.</p></div>';
+  var notes='<div class="card"><h2>How it is worked out</h2>'+how+'<div class="note" style="display:flex;flex-direction:column;gap:8px;margin-top:12px"><p>B-Active months without their own payslip use your payslip rate on that month’s salary. Add each new payslip and its real figures replace the estimate.</p><p>Virgin Active takes no tax off, so the amount to put aside is that income times the rate above. Change the rate in Setup if you know a better one.</p><p>Tax rises faster than pay, so a month with more pay is taxed at a higher rate than a month with less. That is the usual reason an estimate differs from a real payslip. This is a planning figure, not tax advice.</p></div></div>';
+  return head+hero+'<div class="grid2"><div class="stack">'+months+'</div><div class="stack">'+notes+'</div></div>';
 }
 
 /* ---------- backup reminder (phone version) */
@@ -1132,8 +1134,8 @@ function viewBE(){
     wfRow('Basic salary','',R(be.basic),'')+
     (be.unpaid||be.mode==='estimate'?wfRow('Unpaid leave',be.mode==='estimate'?'Daily rate is basic salary over 21.67 days':'',be.unpaid?R(be.unpaid):R(0),'','−'):'')+
     wfRow('Gross income','',R(be.gross),'tot')+
-    wfRow('PAYE tax',be.mode==='estimate'?'Worked out with the 2026/27 SARS tables':'',R(be.paye),'','−')+
-    wfRow('UIF (employee)','1% of gross, capped at '+R(b.uifCap)+' a month',R(be.uif),'','−')+
+    wfRow('PAYE tax',be.mode==='estimate'?'Your payslip rate, '+fmtPct(payeRate())+', on this month\'s salary':'',R(be.paye),'','−')+
+    wfRow('UIF (employee)',be.mode==='estimate'?'Your payslip rate, '+fmtPct(uifRate())+', on this month\'s salary':'',R(be.uif),'','−')+
     wfRow('Loan repayment',be.after!=null?'Balance after this month '+R(be.after):'',R(be.loan),'','−')+
     (be.other?wfRow('Other deductions','',R(be.other),'','−'):'')+
     wfRow('Net pay','',R(be.net),'tot final')+'</div>';
@@ -1175,7 +1177,7 @@ function viewMoney(){
   var mk=ui.moneyMonth,s=summary(mk),f=ui.money;
   var led=ledgerFor(mk).slice().sort(function(a,b){return a.date<b.date?1:a.date>b.date?-1:0});
   var rec=s.alloc.recs;
-  var inc=sum(ledgerFor(mk).filter(function(e){return e.kind==='income'}),function(e){return +e.amount||0});
+  var inc=sum(ledgerFor(mk).filter(function(e){return e.kind==='income'&&counted(e)}),function(e){return +e.amount||0});
   var head='<div class="head"><div><h1>Money</h1><p>Expenses and extra income. Regular costs such as petrol are added for you.</p></div>'+stepper('money',monthLabel(mk))+'</div>';
   var stats='<div class="stats" style="grid-template-columns:repeat(3,minmax(0,1fr))"><div class="stat"><b>'+R(s.spend)+'</b><span>Spending</span></div><div class="stat"><b>'+R(inc)+'</b><span>Extra income</span></div><div class="stat"><b>'+R(sum(rec,function(r){return r.eff}))+'</b><span>Regular costs</span></div></div>';
   var presets=S().presets.map(function(p){return '<button class="chip" type="button" data-act="preset" data-id="'+p.id+'">'+esc(p.label)+(p.amount?' · '+R(p.amount):'')+'</button>'}).join('');
@@ -1194,7 +1196,7 @@ function viewMoney(){
     '<div class="actions"><button class="btn primary" type="submit">'+(f.id?'Save changes':(f.kind==='income'?'Add income':'Add expense'))+'</button>'+(f.id?'<button class="btn" type="button" data-act="m-cancel">Cancel</button>':'')+'</div></form></div>';
   var rows=led.map(function(e){
     var arm=ui.armed==='e:'+e.id;
-    return '<div class="mrow"><div class="when muted tnum" style="font-size:14px">'+fmtDs(e.date)+'</div><div style="min-width:0"><div>'+esc(e.label)+'</div><div class="note">'+esc(e.category||'Other')+(e.kind==='income'?(e.taxable===false?' · income, not taxed':' · income'):'')+'</div></div><div class="tnum" style="font-weight:500;'+(e.kind==='income'?'color:var(--ok)':'')+'">'+(e.kind==='income'?'+':'')+R(e.amount)+'</div><div class="acts"><button class="btn small ghost" data-act="m-edit" data-id="'+e.id+'">Edit</button><button class="btn small '+(arm?'danger':'ghost')+'" data-act="m-del" data-id="'+e.id+'">'+(arm?'Sure?':'Delete')+'</button></div></div>';
+    return '<div class="mrow"><div class="when muted tnum" style="font-size:14px">'+fmtDs(e.date)+'</div><div style="min-width:0"><div>'+esc(e.label)+'</div><div class="note">'+esc(e.category||'Other')+(e.kind==='income'?(e.taxable===false?' · income, not taxed':' · income'):'')+(isEstimate(e)?' · <span class="tag">Estimate, not counted</span>':'')+'</div></div><div class="tnum" style="font-weight:500;'+(e.kind==='income'?'color:var(--ok)':(isEstimate(e)?'color:var(--faint);text-decoration:line-through':''))+'">'+(e.kind==='income'?'+':'')+R(e.amount)+'</div><div class="acts"><button class="btn small ghost" data-act="m-edit" data-id="'+e.id+'">Edit</button><button class="btn small '+(arm?'danger':'ghost')+'" data-act="m-del" data-id="'+e.id+'">'+(arm?'Sure?':'Delete')+'</button></div></div>';
   }).join('');
   var recRows=rec.map(function(r){return '<div class="mrow" style="grid-template-columns:62px minmax(0,1fr) auto"><div><span class="tag">Monthly</span></div><div style="min-width:0"><div>'+esc(r.label)+'</div><div class="note">'+esc(r.category||'Other')+(r.per==='week'?' · '+R(r.base)+' a week':'')+(r.actual?' · '+R(r.actual)+' logged so far':'')+(r.pct?' · '+r.pct+'% of B-Active':'')+'</div></div><div class="tnum" style="font-weight:500">'+R(r.eff)+'</div></div>'}).join('');
   var list='<div class="card"><h2>'+monthLabel(mk)+' <small>'+(led.length+rec.length)+' entries</small></h2>'+((led.length||rec.length)?rows+recRows:'<div class="empty"><b>Nothing logged this month</b>Add an expense, or tap Quick add and say it out loud.</div>')+'<p class="note" style="margin-top:12px">Regular costs are managed in Setup.</p></div>';
@@ -1216,16 +1218,17 @@ function viewSetup(){
     '<form class="form" data-form="ntt" style="margin-top:14px"><div class="fld"><label for="tt-d">Day</label><select id="tt-d" data-b="ntt.dow" data-num="1">'+[1,2,3,4,5,6,0].map(function(d){return '<option value="'+d+'"'+(ui.ntt.dow===d?' selected':'')+'>'+DOWL[d]+'</option>'}).join('')+'</select></div><div class="fld"><label for="tt-c">Class</label><select id="tt-c" data-b="ntt.classId">'+st.classes.filter(function(c){return c.active}).map(function(c){return '<option value="'+esc(c.id)+'"'+(ui.ntt.classId===c.id?' selected':'')+'>'+esc(c.name)+'</option>'}).join('')+'</select></div><div class="fld"><label for="tt-s">Starts</label><input id="tt-s" type="time" data-b="ntt.start" value="'+esc(ui.ntt.start)+'" required></div><div class="actions"><button class="btn" type="submit">Add to week</button></div></form>'+
     '<p class="note" style="margin-top:10px">Your repeating week. Change it here, then use Fill from weekly timetable on the Virgin Active tab to add future invoice periods.</p></div>';
   var b=st.be;
-  var be='<div class="card"><h2>B-Active payslip <small>Base: October 2026</small></h2><div class="form">'+
+  var be='<div class="card"><h2>B-Active payslip <small>'+(slipRates()?'Rates from your '+monthLabel(slipRates().mk)+' payslip':'No payslip yet')+'</small></h2><div class="form">'+
     '<div class="fld"><label for="s-basic">Basic salary (R)</label>'+setupInput('be.basic',b.basic,{num:1}).replace('<input','<input id="s-basic"')+'</div>'+
     '<div class="fld"><label for="s-pd">Pay day of month</label>'+setupInput('be.payDay',b.payDay,{num:1}).replace('<input','<input id="s-pd"')+'</div>'+
-    '<div class="fld"><label for="s-uif">UIF %</label>'+setupInput('be.uifPct',b.uifPct,{num:1}).replace('<input','<input id="s-uif"')+'</div>'+
-    '<div class="fld"><label for="s-cap">UIF monthly cap (R)</label>'+setupInput('be.uifCap',b.uifCap,{num:1}).replace('<input','<input id="s-cap"')+'</div>'+
+    '<div class="fld"><label for="s-paye">PAYE rate % (blank uses your payslip)</label>'+setupInput('be.payePct',b.payePct,{num:1,ph:slipRates()?fmtPct(slipRates().payeRate).replace('%',''):'From payslip'}).replace('<input','<input id="s-paye"')+'</div>'+
+    '<div class="fld"><label for="s-uif">UIF rate % (blank uses your payslip)</label>'+setupInput('be.uifPct',b.uifPct,{num:1,ph:slipRates()?fmtPct(slipRates().uifRate).replace('%',''):'From payslip'}).replace('<input','<input id="s-uif"')+'</div>'+
     '<div class="fld"><label for="s-from">Payslip figures start</label><input id="s-from" class="cell-in" type="month" data-sp="be.from" value="'+esc(b.from)+'"></div>'+
     '<div class="fld"><label for="s-lm">Loan repayment a month (R)</label>'+setupInput('be.loan.monthly',b.loan.monthly,{num:1}).replace('<input','<input id="s-lm"')+'</div>'+
     '<div class="fld"><label for="s-lb">Loan balance (R)</label>'+setupInput('be.loan.balance',b.loan.balance,{num:1}).replace('<input','<input id="s-lb"')+'</div>'+
     '<div class="fld"><label for="s-la">Balance is after month</label><input id="s-la" class="cell-in" type="month" data-sp="be.loan.asOf" value="'+esc(b.loan.asOf)+'"></div>'+
-    '<div class="fld wide"><label style="display:flex;gap:10px;align-items:center;text-transform:none;letter-spacing:0;font-size:14px;color:var(--text)"><input type="checkbox" data-sp="tax.vaSetAside" '+(st.tax.vaSetAside?'checked':'')+'> Set tax aside on Virgin Active income</label><span class="note">Virgin Active does not take tax off. This estimates the extra SARS tax on top of your B-Active salary using the 2026/27 tables, and takes it off your take-home. It is an estimate, not tax advice.</span></div>'+
+    '<div class="fld wide"><label style="display:flex;gap:10px;align-items:center;text-transform:none;letter-spacing:0;font-size:14px;color:var(--text)"><input type="checkbox" data-sp="tax.vaSetAside" '+(st.tax.vaSetAside?'checked':'')+'> Set tax aside on Virgin Active income</label><span class="note">Virgin Active does not take tax off. This sets aside a rate of that income so it is not spent. Leave the rate blank to use your payslip rate. It is a planning figure, not tax advice.</span></div>'+
+    '<div class="fld"><label for="s-vat">Tax rate on Virgin Active % (blank uses your payslip)</label>'+setupInput('tax.vaPct',st.tax.vaPct,{num:1,ph:fmtPct(payeRate()).replace('%','')}).replace('<input','<input id="s-vat"')+'</div>'+
     '</div></div>';
   var rec='<div class="card"><h2>Regular costs <small>Added to every month</small></h2>'+
     (st.recurring.length?st.recurring.map(function(r){var base='recurring#'+r.id,arm=ui.armed==='r:'+r.id;return '<div class="rec-row">'+setupInput(base+'.label',r.label,{label:'Name'})+setupInput(base+'.category',r.category,{label:'Category'})+setupInput(base+'.amount',r.amount,{num:1,label:'Amount',ph:'R'})+'<select class="cell-in" data-sp="'+base+'.per" aria-label="Per"><option value="month"'+(r.per==='week'?'':' selected')+'>a month</option><option value="week"'+(r.per==='week'?' selected':'')+'>a week</option></select>'+'<input class="cell-in" type="month" data-sp="'+base+'.from" value="'+esc(r.from)+'" aria-label="From month"><input class="cell-in" type="month" data-sp="'+base+'.until" value="'+esc(r.until||'')+'" aria-label="Until month"><label class="catch" title="Counts every logged expense that has no item of its own"><input type="checkbox" data-sp="'+base+'.catchAll" '+(r.catchAll?'checked':'')+' aria-label="Everything else"> Else</label><button class="btn small '+(arm?'danger':'ghost')+'" data-act="rec-del" data-id="'+r.id+'">'+(arm?'Sure?':'Remove')+'</button></div>'}).join(''):'<div class="empty">No monthly bills yet.</div>')+
@@ -1414,7 +1417,7 @@ function csvEsc(v){v=String(v==null?'':v);return /[",\n]/.test(v)?'"'+v.replace(
 function exportCsv(){
   var rows=[['Type','Date','Item','Category','Start','End','Amount']];
   Object.keys(state.periods).forEach(function(k){state.periods[k].forEach(function(s){rows.push(['Class',s.date,s.label,'Virgin Active',s.start,s.end,s.rate])})});
-  Object.keys(state.ledger).forEach(function(k){state.ledger[k].forEach(function(e){rows.push([e.kind==='income'?'Income':'Expense',e.date,e.label,e.category,'','',e.amount])})});
+  Object.keys(state.ledger).forEach(function(k){state.ledger[k].forEach(function(e){rows.push([e.kind==='income'?'Income':(isEstimate(e)?'Estimate (not counted)':'Expense'),e.date,e.label,e.category,'','',e.amount])})});
   var body=rows.slice(1).sort(function(a,b){return a[1]<b[1]?-1:1});
   return [rows[0]].concat(body).map(function(r){return r.map(csvEsc).join(',')}).join('\n');
 }
@@ -1545,7 +1548,7 @@ document.addEventListener('click',function(e){
     case 'imp-cancel':ui.imp=null;render();break;
     case 'imp-go':{var bj=ui.imp&&ui.imp.data;if(!bj)break;applySettings(clone(bj.settings));state.periods=clone(bj.periods);state.ledger=clone(bj.ledger);ui.imp=null;noteBackup();ui.month=mkOf(today);ui.vaMonth=payMonthOf(today);ui.moneyMonth=mkOf(today);ui.beMonth=mkOf(today);dataVer++;markDirty('settings/main');toast('Backup restored');render();break}
     case 'install':if(installEvt){installEvt.prompt();installEvt.userChoice.then(function(){installEvt=null;render()})}break;
-    case 'tile':ui.week=mondayOf(today);resetWk();ui.taxYear=Math.max(2026,taxYearOf(ui.month));ui.vaMonth=ui.month;ui.moneyMonth=ui.month;ui.beMonth=ui.month;ui.beYear=mkParse(ui.month).y;ui.slipOpen=false;ui.fill=null;if(!ui.money.id)resetMoney(ui.money.kind);if(!ui.va.id)resetVa(ui.va);break;
+    case 'tile':ui.week=mondayOf(today);resetWk();ui.taxYear=Math.max(2026,mkParse(ui.month).y);ui.vaMonth=ui.month;ui.moneyMonth=ui.month;ui.beMonth=ui.month;ui.beYear=mkParse(ui.month).y;ui.slipOpen=false;ui.fill=null;if(!ui.money.id)resetMoney(ui.money.kind);if(!ui.va.id)resetVa(ui.va);break;
     case 'fc-year':{var ny=mkParse(ui.month).y+(+t.getAttribute('data-dir'));if(ny<2026)break;ui.month=addMonths(ui.month,12*(+t.getAttribute('data-dir')));render();break}
     case 'fc-pick':e.preventDefault();ui.month=t.getAttribute('data-m');render();setTimeout(function(){var b=document.getElementById('breakdown');if(b)b.scrollIntoView({behavior:'smooth',block:'start'})},60);break;
     case 'sv-done':{var sv=S().savings,mm=t.getAttribute('data-m');var o=sv.months[mm]=sv.months[mm]||{};o.done=!o.done;markDirty('settings/main');toast(o.done?'Ticked as saved':'Saving unticked');render();break}
