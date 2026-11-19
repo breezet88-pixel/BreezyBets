@@ -199,6 +199,8 @@ a.brand{color:inherit;text-decoration:none}
 .what-if{margin-top:14px;padding-top:14px;border-top:1px solid var(--line-soft)}
 .what-if .row2{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
 .what-if .row2 .cell-in{flex:1 1 100%;max-width:none!important}
+.goal+.goal{margin-top:18px;padding-top:18px;border-top:1px solid var(--line)}
+.goal .form{align-items:end}
 .combined .sub{font-size:13.5px;color:var(--muted);line-height:1.5}
 @media (max-width:720px){.combined .big-num{font-size:38px}.combined .cb+.cb{padding-left:14px}.combined .sub{font-size:12.5px}}
 .foot{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:36px;padding-top:18px;border-top:1px solid var(--line)}
@@ -390,7 +392,7 @@ function defaultSettings(){return{
   extraHolidays:[],
   cutoffs:{},
   leave:[],
-  savings:{monthly:0,from:'',months:{},goal:{name:'',target:0,opening:0}},
+  savings:{monthly:0,from:'',months:{},goals:[]},
   taxpot:{months:{}}
 }}
 var state={settings:defaultSettings(),periods:{},ledger:{}};
@@ -416,7 +418,9 @@ function applySettings(d){
   ['classes','timetable','recurring','presets','extraHolidays','leave'].forEach(function(k){if(!Array.isArray(s[k]))s[k]=def[k]});
   if(!s.cutoffs||typeof s.cutoffs!=='object')s.cutoffs={};
   s.savings=Object.assign({monthly:0,from:'',months:{}},d.savings||{});if(!s.savings.months)s.savings.months={};
-  s.savings.goal=Object.assign({name:'',target:0,opening:0},(d.savings&&d.savings.goal)||{});
+  s.savings.goals=Array.isArray(d.savings&&d.savings.goals)?d.savings.goals.map(function(g){return{id:g.id||uid(),name:g.name||'',target:+g.target||0,saved:+g.saved||0,monthly:g.monthly||''}}):[];
+  if(!s.savings.goals.length&&d.savings&&d.savings.goal&&(d.savings.goal.name||+d.savings.goal.target>0)){var og=d.savings.goal;s.savings.goals=[{id:uid(),name:og.name||'',target:+og.target||0,saved:+og.opening||0,monthly:''}]}
+  delete s.savings.goal;
   s.taxpot=Object.assign({months:{}},d.taxpot||{});if(!s.taxpot.months)s.taxpot.months={};
   s.classes=s.classes.map(function(c){var n=OLD_CLASS_COLORS[String(c&&c.color||'').toLowerCase()];return n?Object.assign({},c,{color:n}):c});
   state.settings=s;
@@ -522,9 +526,8 @@ function sessionIndex(){
   return idx.map;
 }
 var sessionsFor=function(mk){return (sessionIndex()[mk]||[]).slice().sort(cmpSession)};
-/* A class can be ticked Taught or Cancelled. Cancelled classes stay in the list but are never counted. */
+/* A class counts unless it is cancelled. Cancelled classes stay in the list, struck through, but are never counted. */
 var liveSessions=function(mk){return sessionsFor(mk).filter(function(s){return s.status!=='cancelled'})};
-var isUnconfirmed=function(s){return !s.status&&s.date<=today};
 var leaveOn=function(ds){return (S().leave||[]).filter(function(l){return ds>=l.from&&ds<=l.to})[0]||null};
 var ledgerFor=function(mk){return state.ledger[mk]||[]};
 /* Tax lines from before payslip figures start were estimates, so they are never counted. */
@@ -577,15 +580,14 @@ function rentWhatText(){
   return t;
 }
 function saveWhatText(){
-  var sv=S().savings,g=sv.goal,target=+g.target||0,cur=+sv.monthly||0,x=+ui.x.save||0;
+  var sv=S().savings,goals=sv.goals||[],cur=+sv.monthly||0,x=+ui.x.save||0;
+  var remain=goals.reduce(function(t,g){return t+Math.max((+g.target||0)-(+g.saved||0),0)},0);
   if(!(x>0))return 'Try a different monthly amount to see what it changes.';
-  if(target>0){
-    var remain=Math.max(target-savedTotal(),0);
-    if(remain<=0)return 'You have already reached this goal.';
+  if(remain>0){
     var m=Math.ceil(remain/x),m0=cur>0?Math.ceil(remain/cur):0,diff=m0?m0-m:0;
-    return 'At '+R(x)+' a month you reach '+R(target)+' in about '+m+' month'+(m===1?'':'s')+', around '+monthLabel(addMonths(mkOf(today),m))+(diff>0?'. That is '+diff+' month'+(diff===1?'':'s')+' sooner than at '+R(cur):diff<0?'. That is '+(-diff)+' month'+(diff===-1?'':'s')+' later than at '+R(cur):'')+'.';
+    return 'At '+R(x)+' a month you clear all your goals ('+R(remain)+' still to save) in about '+m+' month'+(m===1?'':'s')+', around '+monthLabel(addMonths(mkOf(today),m))+(diff>0?'. That is '+diff+' month'+(diff===1?'':'s')+' sooner than at '+R(cur):diff<0?'. That is '+(-diff)+' month'+(diff===-1?'':'s')+' later than at '+R(cur):'')+'.';
   }
-  return 'At '+R(x)+' a month you would put away '+R(x*12)+' in a year. Add a target above to see when you would reach it.';
+  return 'At '+R(x)+' a month you would put away '+R(x*12)+' in a year. Add a goal with a target to see when you would reach it.';
 }
 /* B-Active overtime shifts: hours x hourly rate x multiplier, paid with the pay month chosen */
 function hourlyRate(){var h=S().be.hourly;if(ownRate(h)&&+h>0)return +h;return r2((+S().be.basic||0)/(260/12*8))}
@@ -729,7 +731,7 @@ function tile(href,label,big,sub,cls){
 }
 var CHECK='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 function tickBtn(m,d,act,on,off){return '<button class="tick'+(d?' on':'')+'" role="checkbox" aria-checked="'+(d?'true':'false')+'" data-act="'+(act||'sv-done')+'" data-m="'+m+'"><span class="box">'+(d?CHECK:'')+'</span><span>'+(d?(on||'Saved'):(off||'Not saved'))+'</span></button>'}
-function savedTotal(){var sv=S().savings,t=0;Object.keys(sv.months||{}).forEach(function(k){if(sv.months[k]&&sv.months[k].done)t+=savingsFor(k)});return t+(+(sv.goal&&sv.goal.opening)||0)}
+function savedTotal(){var sv=S().savings,t=0;Object.keys(sv.months||{}).forEach(function(k){if(sv.months[k]&&sv.months[k].done)t+=savingsFor(k)});return t}
 function viewOverview(){
   var mk=ui.month,s=summary(mk),vp=vaPayday(mk),bp=bePayday(mk);
   var eom=fmtDs(mk+'-'+pad(lastDay(mk)));
@@ -741,7 +743,7 @@ function viewOverview(){
       return '<div class="cb wide"><span class="lab">Free to spend by '+eom+', after savings</span><span class="big-num '+sgn(s.left)+'">'+Rw(s.left)+'</span><span class="sub">'+(s.left<0?'Over by '+Rw(-s.left)+'. ':(cur&&dl>0?'About '+Rw(s.left/dl)+' a day for the '+dl+' day'+(dl===1?'':'s')+' left. ':''))+'This is a forecast. Deductions, regular costs, expenses and savings are already taken off.</span></div>'})()+'</div>';
   var wk=weekData(mondayOf(today));
   var tiles='<div class="tiles">'+
-    tile('virgin-active','Virgin Active',Rw(s.va),(s.ses.length?'<b>'+done+'</b> class'+(done===1?'':'es')+' done'+(togo?' · '+togo+' to go':''):'No classes yet')+'<br>'+(s.ses.filter(isUnconfirmed).length?'<b>'+s.ses.filter(isUnconfirmed).length+'</b> to confirm<br>':'')+'Paid '+fmtD(vp.date),'income')+
+    tile('virgin-active','Virgin Active',Rw(s.va),(s.ses.length?'<b>'+done+'</b> class'+(done===1?'':'es')+' done'+(togo?' · '+togo+' to go':''):'No classes yet')+'<br>Paid '+fmtD(vp.date),'income')+
     tile('be-active','B-Active salary',s.be.has?Rw(s.be.net):'None','Paid '+fmtD(bp.date),'income')+
     tile('money','Expenses',Rw(s.spend),weekly.length?esc(weekly.map(function(r){return r.label}).join(', '))+' · '+R(sum(weekly,function(r){return +r.amount||0}))+' a week':'This month','out')+
     tile('week','This week',wk.recs.length?Rw(wk.left):'Set up',wk.recs.length?(wk.left<0?'Over by '+R(-wk.left)+' · allowance '+R(wk.budget):'left of '+R(wk.budget)+' · spent '+R(wk.spent)):'Add a weekly allowance in Setup',wk.recs.length&&wk.left<0?'out':'')+
@@ -782,12 +784,27 @@ function viewSavings(){
   var hero='<div class="hero"><div><span class="lab">Saved so far</span><span class="big-num">'+R(savedTotal())+'</span><span class="sub">Months you ticked as saved</span></div><div><span class="lab">Planned in '+yr+'</span><span class="mid">'+R(plan)+'</span><span class="sub">'+R(done)+' saved</span></div><div><span class="lab">Each month</span><span class="mid">'+R(sv.monthly)+'</span><span class="sub">From '+(sv.from?monthLabel(sv.from):'not set')+(function(){var th=summary(mkOf(today)).takeHome;return (th>0&&+sv.monthly>0)?' · '+Math.round(sv.monthly/th*100)+'% of take-home':''})()+'</span></div></div>';
   var set='<div class="card"><h2>Monthly saving</h2><div class="form"><div class="fld"><label for="sv-m">Amount each month (R)</label><input id="sv-m" class="cell-in" type="number" inputmode="decimal" step="any" min="0" data-sp="savings.monthly" data-num="1" value="'+esc(sv.monthly)+'"></div><div class="fld"><label for="sv-f">Starting from</label><input id="sv-f" class="cell-in" type="month" data-sp="savings.from" value="'+esc(sv.from)+'"></div></div><p class="note" style="margin-top:10px">Savings come off your take-home before the leftover figure. Change one month below if you save a different amount.</p></div>';
   var list='<div class="card"><h2>'+yr+' <span style="display:flex;gap:6px"><button class="btn icon small" data-act="fc-year" data-dir="-1" aria-label="Previous year"'+(yr<=2026?' disabled':'')+'>&#8249;</button><button class="btn icon small" data-act="fc-year" data-dir="1" aria-label="Next year">&#8250;</button></span></h2>'+rows+'</div>';
-  var g=sv.goal,have=(+g.opening||0)+(savedTotal()-(+g.opening||0)),target=+g.target||0,remain=Math.max(target-savedTotal(),0);
-  var pc=target?Math.min(100,savedTotal()/target*100):0,mleft=(+sv.monthly>0&&remain>0)?Math.ceil(remain/sv.monthly):0;
-  var goal='<div class="card"><h2>Savings goal'+(g.name?' <small>'+esc(g.name)+'</small>':'')+'</h2><div class="form"><div class="fld"><label for="sg-n">Goal name</label><input id="sg-n" class="cell-in" data-sp="savings.goal.name" value="'+esc(g.name)+'" placeholder="Emergency fund"></div><div class="fld"><label for="sg-t">Target (R)</label><input id="sg-t" class="cell-in" type="number" inputmode="decimal" step="any" min="0" data-sp="savings.goal.target" data-num="1" value="'+esc(g.target||'')+'"></div><div class="fld"><label for="sg-o">Already saved (R)</label><input id="sg-o" class="cell-in" type="number" inputmode="decimal" step="any" min="0" data-sp="savings.goal.opening" data-num="1" value="'+esc(g.opening||'')+'"></div></div>'+
-    (target?'<div class="bar" style="margin-top:14px"><div class="t"><span>'+R(savedTotal())+' of '+R(target)+'</span><span>'+Math.round(pc)+'%</span></div><div class="rail"><i style="width:'+pc+'%"></i></div></div><p class="note" style="margin-top:10px">'+(remain<=0?'You have reached this goal.':(mleft?'At '+R(sv.monthly)+' a month you reach it in about '+mleft+' month'+(mleft===1?'':'s')+', around '+monthLabel(addMonths(mkOf(today),mleft))+'.':'Set a monthly saving to see when you will get there.'))+'</p>':'<p class="note" style="margin-top:10px">Add a target and Already saved to see your progress and when you will get there.</p>')+
-    '<div class="what-if"><label class="lab" for="sg-try">What if I saved a different amount?</label><div class="row2"><input id="sg-try" class="cell-in" type="number" inputmode="decimal" min="0" step="any" data-b="x.save" value="'+esc(ui.x.save)+'" placeholder="Monthly amount (R)" style="max-width:190px">'+[2000,2500,3000].map(function(v){return '<button class="chip" type="button" data-act="x-set" data-k="save" data-v="'+v+'">'+R(v)+'</button>'}).join('')+'</div><p class="note" id="save-what" style="margin-top:8px">'+esc(saveWhatText())+'</p></div></div>';
-  return head+hero+'<div class="grid2"><div class="stack">'+now+list+'</div><div class="stack">'+goal+set+'</div></div>';
+  var goals=sv.goals||[];
+  var goalBlocks=goals.map(function(g){
+    var gt=+g.target||0,gs=+g.saved||0,gm=+g.monthly||0,gr=Math.max(gt-gs,0),gpc=gt?Math.min(100,gs/gt*100):0,armed=ui.armed==='g:'+g.id,base='savings.goals#'+g.id;
+    var eta=(gt>0&&gr<=0)?'Reached. Nicely done.':(gm>0&&gr>0?'At '+R(gm)+' a month, about '+Math.ceil(gr/gm)+' month'+(Math.ceil(gr/gm)===1?'':'s')+' to go ('+monthLabel(addMonths(mkOf(today),Math.ceil(gr/gm)))+').':'Add a target and a monthly amount to see when you will reach it.');
+    return '<div class="goal"><div class="form">'+
+      '<div class="fld wide"><label>Goal</label><input class="cell-in" data-sp="'+base+'.name" value="'+esc(g.name||'')+'" placeholder="Emergency fund" aria-label="Goal name"></div>'+
+      '<div class="fld"><label>Target (R)</label><input class="cell-in" type="number" inputmode="decimal" step="any" min="0" data-sp="'+base+'.target" data-num="1" value="'+esc(g.target||'')+'" aria-label="Target"></div>'+
+      '<div class="fld"><label>Saved so far (R)</label><input class="cell-in" type="number" inputmode="decimal" step="any" min="0" data-sp="'+base+'.saved" data-num="1" value="'+esc(g.saved||'')+'" aria-label="Saved so far"></div>'+
+      '<div class="fld"><label>Each month (R)</label><input class="cell-in" type="number" inputmode="decimal" step="any" min="0" data-sp="'+base+'.monthly" data-num="1" value="'+esc(g.monthly||'')+'" aria-label="Each month"></div>'+
+      '</div>'+
+      (gt?'<div class="bar" style="margin-top:10px"><div class="t"><span>'+R(gs)+' of '+R(gt)+'</span><span>'+Math.round(gpc)+'%</span></div><div class="rail"><i class="in" style="width:'+gpc+'%"></i></div></div>':'')+
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:8px"><span class="note">'+eta+'</span><button class="btn small '+(armed?'danger':'ghost')+'" data-act="goal-del" data-id="'+g.id+'">'+(armed?'Sure?':'Remove')+'</button></div>'+
+    '</div>';
+  }).join('');
+  var gTarget=sum(goals,function(g){return +g.target||0}),gSaved=sum(goals,function(g){return +g.saved||0}),gMonthly=sum(goals,function(g){return +g.monthly||0});
+  var sumNote=goals.length?'<p class="note" style="margin-top:14px">Your goals hold '+R(gSaved)+' of '+R(gTarget)+'.'+(gMonthly>0?' They set aside '+R(gMonthly)+' a month'+(+sv.monthly>0?(gMonthly>+sv.monthly?', which is '+R(gMonthly-(+sv.monthly))+' more than the '+R(sv.monthly)+' you put away each month.':', within the '+R(sv.monthly)+' you put away each month.'):'.'):'')+'</p>':'';
+  var goalsCard='<div class="card"><h2>Savings goals'+(goals.length?' <small>'+goals.length+' goal'+(goals.length===1?'':'s')+'</small>':'')+'</h2>'+
+    (goals.length?goalBlocks+sumNote:'<p class="note">No goals yet. Add one, such as an emergency fund, a holiday or a car.</p>')+
+    '<div class="chips" style="margin-top:14px"><button class="btn" data-act="goal-add">Add a goal</button></div>'+
+    '<div class="what-if"><label class="lab" for="sg-try">What if I saved a different amount a month?</label><div class="row2"><input id="sg-try" class="cell-in" type="number" inputmode="decimal" min="0" step="any" data-b="x.save" value="'+esc(ui.x.save)+'" placeholder="Monthly amount (R)" style="max-width:190px">'+[2000,2500,3000].map(function(v){return '<button class="chip" type="button" data-act="x-set" data-k="save" data-v="'+v+'">'+R(v)+'</button>'}).join('')+'</div><p class="note" id="save-what" style="margin-top:8px">'+esc(saveWhatText())+'</p></div></div>';
+  return head+hero+'<div class="grid2"><div class="stack">'+now+list+'</div><div class="stack">'+goalsCard+set+'</div></div>';
 }
 
 /* ---------- weekly allowances */
@@ -1153,7 +1170,7 @@ function viewVA(){
   var all=sessionsFor(mk);
   var venues=[];S().classes.forEach(function(c){if(c.venue&&venues.indexOf(c.venue)<0)venues.push(c.venue)});
   var ses=all.filter(function(s){return ui.venue==='all'||clsOf(s).venue===ui.venue});
-  var live=all.filter(function(s){return s.status!=='cancelled'}),nCx=all.length-live.length,unc=all.filter(isUnconfirmed).length;
+  var live=all.filter(function(s){return s.status!=='cancelled'}),nCx=all.length-live.length;
   var total=sum(live,function(s){return +s.rate||0}),earned=sum(live.filter(function(s){return s.date<=today}),function(s){return +s.rate||0});
   var left=live.filter(function(s){return s.date>today}).length;
   var f=ui.va,act=S().classes.filter(function(c){return c.active||c.id===f.classId});
@@ -1189,8 +1206,6 @@ function viewVA(){
       if(s.date!==cur){cur=s.date;var hn=holidayName(s.date);list+='<div class="day"><span>'+fmtD(s.date)+'</span><span style="font-size:12px;letter-spacing:.04em;color:var(--warn)">'+(hn?esc(hn):'')+'</span></div>'}
       var arm=ui.armed==='s:'+s.id,cx=s.status==='cancelled';
       var stb=cx?'<button class="btn small" data-act="va-st" data-id="'+s.id+'" data-st="">Restore</button>':
-        s.status==='taught'?'<span class="status paid">Taught</span><button class="btn small ghost" data-act="va-st" data-id="'+s.id+'" data-st="">Undo</button>':
-        s.date<=today?'<button class="btn small" data-act="va-st" data-id="'+s.id+'" data-st="taught">Taught</button><button class="btn small ghost" data-act="va-st" data-id="'+s.id+'" data-st="cancelled">Cancel</button>':
         '<button class="btn small ghost" data-act="va-st" data-id="'+s.id+'" data-st="cancelled">Cancel</button>';
       list+='<div class="row'+(s.note?' flag':'')+'"><div class="when">'+esc(s.start)+' to '+esc(s.end)+'</div><div class="what" data-flag="'+esc(s.note||'')+'">'+chip(c)+(cx?'<span class="tag">Cancelled</span>':'')+'</div><div class="amt '+(cx?'':'in')+'"'+(cx?' style="color:var(--faint);text-decoration:line-through"':'')+'>'+(+s.rate?R(s.rate):'<span class="warn">R0</span>')+'</div><div class="acts">'+stb+'<button class="btn small ghost" data-act="va-edit" data-id="'+s.id+'">Edit</button><button class="btn small '+(arm?'danger':'ghost')+'" data-act="va-del" data-id="'+s.id+'">'+(arm?'Sure?':'Delete')+'</button></div></div>';
     });
@@ -1200,8 +1215,7 @@ function viewVA(){
   var bytab='<div class="card"><h2>By class</h2>'+(byRows.length?'<div class="scroll"><table><tr><th>Class</th><th class="r">Classes</th><th class="r">Total</th></tr>'+byRows.map(function(o){return '<tr><td>'+chip(o.c)+'</td><td class="r">'+o.n+'</td><td class="r in">'+R(o.t)+'</td></tr>'}).join('')+'<tr><td><b>Total</b></td><td class="r"><b>'+live.length+'</b></td><td class="r in"><b>'+R(total)+'</b></td></tr></table></div>':'<p class="note">Totals appear once you add classes.</p>')+
     '<div class="chips" style="margin-top:14px"><button class="btn small" data-act="copy-invoice"'+(all.length?'':' disabled')+'>Copy invoice summary</button></div></div>';
   var vchips='<div class="chips" style="margin-bottom:12px"><button class="chip'+(ui.venue==='all'?' on':'')+'" data-act="venue" data-v="all">All venues</button>'+venues.map(function(v){return '<button class="chip'+(ui.venue===v?' on':'')+'" data-act="venue" data-v="'+esc(v)+'">'+esc(v)+'</button>'}).join('')+'</div>';
-  var confirmBar=unc?'<div class="note" style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:12px;padding:10px 12px;border:1px solid var(--line-strong);border-radius:10px;background:var(--panel-2);color:var(--text)"><span><b>'+unc+' class'+(unc===1?'':'es')+'</b> already happened and '+(unc===1?'is':'are')+' not confirmed. Tick the ones that were cancelled, then confirm the rest.</span><button class="btn small primary" data-act="va-confirm">Mark all as taught</button></div>':'';
-  var listCard='<div class="card"><h2>Classes this invoice <small>'+fmtDs(per.start)+' to '+fmtDs(per.end)+'</small></h2>'+confirmBar+vchips+list+'</div>';
+  var listCard='<div class="card"><h2>Classes this invoice <small>'+fmtDs(per.start)+' to '+fmtDs(per.end)+'</small></h2>'+vchips+list+'</div>';
   return head+lvBanner+stats+'<div class="grid2"><div class="stack">'+form+listCard+'</div><div class="stack"><div class="card"><h2>Weekly timetable</h2><p class="note">Your repeating week. One tap adds every class for the invoice period, skipping public holidays and your leave.</p><div class="chips" style="margin-top:12px">'+fillBtn+'</div></div>'+fillPanel+bytab+'</div></div>';
 }
 
@@ -1533,7 +1547,7 @@ function buildFill(past){
 function csvEsc(v){v=String(v==null?'':v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
 function exportCsv(){
   var rows=[['Type','Date','Item','Category','Start','End','Amount','Status']];
-  Object.keys(state.periods).forEach(function(k){state.periods[k].forEach(function(s){rows.push(['Class',s.date,s.label,'Virgin Active',s.start,s.end,s.status==='cancelled'?0:s.rate,s.status==='cancelled'?'Cancelled':(s.status==='taught'?'Taught':'Planned')])})});
+  Object.keys(state.periods).forEach(function(k){state.periods[k].forEach(function(s){rows.push(['Class',s.date,s.label,'Virgin Active',s.start,s.end,s.status==='cancelled'?0:s.rate,s.status==='cancelled'?'Cancelled':'Counted'])})});
   Object.keys(state.ledger).forEach(function(k){state.ledger[k].forEach(function(e){rows.push([e.kind==='income'?'Income':(isEstimate(e)?'Estimate (not counted)':'Expense'),e.date,e.label,e.category,'','',e.amount,''])})});
   var body=rows.slice(1).sort(function(a,b){return a[1]<b[1]?-1:1});
   return [rows[0]].concat(body).map(function(r){return r.map(csvEsc).join(',')}).join('\n');
@@ -1677,8 +1691,9 @@ document.addEventListener('click',function(e){
     case 'va-cancel':resetVa();render();break;
     case 'x-set':ui.x[t.getAttribute('data-k')]=t.getAttribute('data-v');render();break;
     case 'nrec-fill':ui.nrec.label=t.getAttribute('data-l');ui.nrec.category=t.getAttribute('data-c');ui.nrec.per='month';render();setTimeout(function(){var a=document.getElementById('nr-a');if(a){a.scrollIntoView({block:'center'});a.focus()}},40);break;
-    case 'va-st':{var fs=findSession(id);if(!fs)break;var ns=t.getAttribute('data-st');if(ns)fs.s.status=ns;else delete fs.s.status;markDirty('periods/'+fs.k);toast(ns==='cancelled'?'Cancelled. It is no longer counted.':ns==='taught'?'Marked as taught.':'Back to planned.');render();break}
-    case 'va-confirm':{var cn=0,ck={};sessionsFor(ui.vaMonth).forEach(function(x){if(isUnconfirmed(x)){var q=findSession(x.id);if(q){q.s.status='taught';ck[q.k]=1;cn++}}});Object.keys(ck).forEach(function(k){markDirty('periods/'+k)});toast(cn?cn+' class'+(cn===1?'':'es')+' marked as taught':'Nothing to confirm');render();break}
+    case 'va-st':{var fs=findSession(id);if(!fs)break;var ns=t.getAttribute('data-st');if(ns)fs.s.status=ns;else delete fs.s.status;markDirty('periods/'+fs.k);toast(ns==='cancelled'?'Cancelled. It is no longer counted.':'Restored. It counts again.');render();break}
+    case 'goal-add':{var sg=S().savings;if(!Array.isArray(sg.goals))sg.goals=[];sg.goals.push({id:uid(),name:'',target:0,saved:0,monthly:''});markDirty('settings/main');toast('Goal added');render();break}
+    case 'goal-del':if(arm('g:'+id)){var sv2=S().savings;sv2.goals=(sv2.goals||[]).filter(function(g){return g.id!==id});markDirty('settings/main');toast('Goal removed');render()}break;
     case 'va-del':if(arm('s:'+id)){removeSession(id);if(ui.va.id===id)resetVa();toast('Class removed');render()}break;
     case 'fill-open':ui.fill=buildFill();render();break;
     case 'fill-close':ui.fill=null;render();break;
