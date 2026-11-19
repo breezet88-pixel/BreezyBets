@@ -284,7 +284,7 @@ var vaPayday=function(mk){return adjustPayday(mk+'-'+pad(lastDay(mk)),'The last 
 var bePayday=function(mk){var pd=Math.min(28,Math.max(1,+state.settings.be.payDay||25));return adjustPayday(mk+'-'+pad(pd),'The '+pd+'th')};
 
 /* ================================================================== tax */
-/* SARS 2026/27 (1 Mar 2026 to 28 Feb 2027). Checked against the Be Active October 2026 payslip. */
+/* SARS 2026/27 (1 Mar 2026 to 28 Feb 2027). Checked against the B-Active October 2026 payslip. */
 var BRACKETS=[[0,.18],[245100,.26],[383100,.31],[530200,.36],[695800,.39],[887000,.41],[1878600,.45]];
 var REBATE=17820;
 function annualTax(a){var t=0;for(var i=0;i<BRACKETS.length;i++){var lo=BRACKETS[i][0],hi=i+1<BRACKETS.length?BRACKETS[i+1][0]:Infinity;if(a>lo)t+=(Math.min(a,hi)-lo)*BRACKETS[i][1]}return t}
@@ -404,7 +404,7 @@ function addEntry(e){var k=mkOf(e.date);(state.ledger[k]=state.ledger[k]||[]).pu
 function findEntry(id){for(var k in state.ledger){var i=state.ledger[k].findIndex(function(s){return s.id===id});if(i>=0)return{k:k,i:i,e:state.ledger[k][i]}}return null}
 function removeEntry(id){var f=findEntry(id);if(!f)return;state.ledger[f.k].splice(f.i,1);markDirty('ledger/'+f.k)}
 
-/* Be Active, using the payslip as the base */
+/* B-Active, using the payslip as the base */
 function loanFor(mk){
   var L=S().be.loan;
   if(!L||!(+L.monthly)||!L.asOf||mk<=L.asOf)return{pay:0,after:null};
@@ -509,12 +509,12 @@ function viewOverview(){
     '<div><span class="lab">Spending</span><span class="mid">'+R(s.spend)+'</span><span class="sub">'+Object.keys(s.cats).length+(Object.keys(s.cats).length===1?' category':' categories')+'</span></div></div>';
   var wf='<div class="card"><h2>Gross to take-home <small>paid in '+monthLabel(mk)+'</small></h2><div class="wf">'+
     wfRow('Virgin Active classes',s.ses.length?s.ses.length+' classes · invoice '+fmtDs(per.start)+' to '+fmtDs(per.end)+' · paid '+fmtD(vp.date)+(per.end>=today?' · forecast':''):'No classes in this invoice period yet',R(s.va),'')+
-    wfRow('Be Active salary',be.mode==='legacy'?'As recorded in your old sheet, before payslip deductions':(be.unpaid?'Basic '+R(be.basic)+' less unpaid leave '+R(be.unpaid):'Basic salary')+' · paid '+fmtD(bp.date),R(be.gross),'')+
+    wfRow('B-Active salary',be.mode==='legacy'?'As recorded in your old sheet, before payslip deductions':(be.unpaid?'Basic '+R(be.basic)+' less unpaid leave '+R(be.unpaid):'Basic salary')+' · paid '+fmtD(bp.date),R(be.gross),'')+
     (s.extra?wfRow('Extra income','',R(s.extra),'','+'):'')+
     wfRow('Gross earnings','',R(s.gross),'tot')+
-    (be.paye?wfRow('PAYE tax','Taken from your Be Active pay',R(be.paye),'','−'):'')+
-    (be.uif?wfRow('UIF','1% of your Be Active pay, capped',R(be.uif),'','−'):'')+
-    (be.loan?wfRow('Be Active loan repayment',be.after!=null?'Balance after this payment '+R(be.after):'',R(be.loan),'','−'):'')+
+    (be.paye?wfRow('PAYE tax','Taken from your B-Active pay',R(be.paye),'','−'):'')+
+    (be.uif?wfRow('UIF','1% of your B-Active pay, capped',R(be.uif),'','−'):'')+
+    (be.loan?wfRow('B-Active loan repayment',be.after!=null?'Balance after this payment '+R(be.after):'',R(be.loan),'','−'):'')+
     (be.other?wfRow('Other payslip deductions','',R(be.other),'','−'):'')+
     (s.tax?wfRow('Tax set aside on Virgin Active','Estimate for SARS. This income has no tax taken off at source.',R(s.tax),'','−'):'')+
     wfRow('Take-home','',R(s.takeHome),'tot')+
@@ -533,7 +533,7 @@ function upcoming(){
   var items=[];
   for(var i=-1;i<=2;i++){
     var mk=addMonths(mkOf(today),i);
-    var be=beMonth(mk);if(be.has&&be.net>0)items.push({what:'Be Active net pay',date:bePayday(mk).date,amount:be.net,est:be.mode==='estimate'});
+    var be=beMonth(mk);if(be.has&&be.net>0)items.push({what:'B-Active net pay',date:bePayday(mk).date,amount:be.net,est:be.mode==='estimate'});
     var va=sum(sessionsFor(mk),function(s){return +s.rate||0});if(va>0)items.push({what:'Virgin Active',date:vaPayday(mk).date,amount:va,est:period(mk).end>=today});
   }
   var f=items.filter(function(x){return x.date>=today}).sort(function(a,b){return a.date<b.date?-1:1}).slice(0,4);
@@ -593,7 +593,7 @@ function viewVA(){
 /* ---------- be active */
 function viewBE(){
   var mk=ui.beMonth,be=beMonth(mk),p=bePayday(mk),b=S().be;
-  var head='<div class="head"><div><h1>Be Active</h1><p>Your salary after PAYE, UIF and the loan, worked out from your payslip. Paid on the '+b.payDay+'th, or the working day before.</p></div>'+stepper('be',monthLabel(mk))+'</div>';
+  var head='<div class="head"><div><h1>B-Active</h1><p>Your salary after PAYE, UIF and the loan, worked out from your payslip. Paid on the '+b.payDay+'th, or the working day before.</p></div>'+stepper('be',monthLabel(mk))+'</div>';
   var src=be.mode==='payslip'?'From your payslip':be.mode==='estimate'?'Estimated':'From your old sheet';
   var hero='<div class="hero"><div><span class="lab">Net pay · '+src+'</span><span class="big-num red">'+R(be.net)+'</span><span class="sub">Lands '+fmtDY(p.date)+paydayNote(p)+'</span></div><div><span class="lab">Gross salary</span><span class="mid">'+R(be.gross)+'</span><span class="sub">'+(be.unpaid?'After '+R(be.unpaid)+' unpaid leave':'Basic '+R(be.basic))+'</span></div><div><span class="lab">Deductions</span><span class="mid">'+R(be.gross-be.net)+'</span><span class="sub">PAYE, UIF and loan</span></div></div>';
   var rows='<div class="wf">'+
@@ -607,7 +607,7 @@ function viewBE(){
     wfRow('Net pay','',R(be.net),'tot final')+'</div>';
   var detail;
   if(be.mode==='legacy'){
-    detail='<div class="card"><h2>'+monthLabel(mk)+'</h2><p class="note">'+(be.has?'This month comes from your old spreadsheet, where Be Active was recorded as gross income, with the loan and tax as separate expenses. Payslip-based figures start from '+monthLabel(b.from)+'.':'No Be Active income was recorded for this month in your spreadsheet.')+'</p></div>';
+    detail='<div class="card"><h2>'+monthLabel(mk)+'</h2><p class="note">'+(be.has?'This month comes from your old spreadsheet, where B-Active was recorded as gross income, with the loan and tax as separate expenses. Payslip-based figures start from '+monthLabel(b.from)+'.':'No B-Active income was recorded for this month in your spreadsheet.')+'</p></div>';
   }else{
     var sl=ui.slip;
     var form='';
@@ -662,7 +662,7 @@ function viewMoney(){
     var arm=ui.armed==='e:'+e.id;
     return '<div class="mrow"><div class="when muted tnum" style="font-size:14px">'+fmtDs(e.date)+'</div><div style="min-width:0"><div>'+esc(e.label)+'</div><div class="note">'+esc(e.category||'Other')+(e.kind==='income'?' · income':'')+'</div></div><div class="tnum" style="font-weight:500;'+(e.kind==='income'?'color:var(--ok)':'')+'">'+(e.kind==='income'?'+':'')+R(e.amount)+'</div><div class="acts"><button class="btn small ghost" data-act="m-edit" data-id="'+e.id+'">Edit</button><button class="btn small '+(arm?'danger':'ghost')+'" data-act="m-del" data-id="'+e.id+'">'+(arm?'Sure?':'Delete')+'</button></div></div>';
   }).join('');
-  var recRows=rec.map(function(r){return '<div class="mrow" style="grid-template-columns:62px minmax(0,1fr) auto"><div><span class="tag">Monthly</span></div><div style="min-width:0"><div>'+esc(r.label)+'</div><div class="note">'+esc(r.category||'Other')+(r.pct?' · '+r.pct+'% of Be Active':'')+'</div></div><div class="tnum" style="font-weight:500">'+R(r.amount)+'</div></div>'}).join('');
+  var recRows=rec.map(function(r){return '<div class="mrow" style="grid-template-columns:62px minmax(0,1fr) auto"><div><span class="tag">Monthly</span></div><div style="min-width:0"><div>'+esc(r.label)+'</div><div class="note">'+esc(r.category||'Other')+(r.pct?' · '+r.pct+'% of B-Active':'')+'</div></div><div class="tnum" style="font-weight:500">'+R(r.amount)+'</div></div>'}).join('');
   var list='<div class="card"><h2>'+monthLabel(mk)+' <small>'+(led.length+rec.length)+' entries</small></h2>'+((led.length||rec.length)?rows+recRows:'<div class="empty"><b>Nothing logged this month</b>Add an expense, or tap Quick add and say it out loud.</div>')+'<p class="note" style="margin-top:12px">Monthly bills are managed in Setup.</p></div>';
   return head+stats+'<div class="grid2"><div class="stack">'+form+'</div><div class="stack">'+list+'</div></div>';
 }
@@ -682,7 +682,7 @@ function viewSetup(){
     '<form class="form" data-form="ntt" style="margin-top:14px"><div class="fld"><label for="tt-d">Day</label><select id="tt-d" data-b="ntt.dow" data-num="1">'+[1,2,3,4,5,6,0].map(function(d){return '<option value="'+d+'"'+(ui.ntt.dow===d?' selected':'')+'>'+DOWL[d]+'</option>'}).join('')+'</select></div><div class="fld"><label for="tt-c">Class</label><select id="tt-c" data-b="ntt.classId">'+st.classes.filter(function(c){return c.active}).map(function(c){return '<option value="'+esc(c.id)+'"'+(ui.ntt.classId===c.id?' selected':'')+'>'+esc(c.name)+'</option>'}).join('')+'</select></div><div class="fld"><label for="tt-s">Starts</label><input id="tt-s" type="time" data-b="ntt.start" value="'+esc(ui.ntt.start)+'" required></div><div class="actions"><button class="btn" type="submit">Add to week</button></div></form>'+
     '<p class="note" style="margin-top:10px">Your repeating week. Change it here, then use Fill from weekly timetable on the Virgin Active tab to add future invoice periods.</p></div>';
   var b=st.be;
-  var be='<div class="card"><h2>Be Active payslip <small>Base: October 2026</small></h2><div class="form">'+
+  var be='<div class="card"><h2>B-Active payslip <small>Base: October 2026</small></h2><div class="form">'+
     '<div class="fld"><label for="s-basic">Basic salary (R)</label>'+setupInput('be.basic',b.basic,{num:1}).replace('<input','<input id="s-basic"')+'</div>'+
     '<div class="fld"><label for="s-pd">Pay day of month</label>'+setupInput('be.payDay',b.payDay,{num:1}).replace('<input','<input id="s-pd"')+'</div>'+
     '<div class="fld"><label for="s-uif">UIF %</label>'+setupInput('be.uifPct',b.uifPct,{num:1}).replace('<input','<input id="s-uif"')+'</div>'+
@@ -691,7 +691,7 @@ function viewSetup(){
     '<div class="fld"><label for="s-lm">Loan repayment a month (R)</label>'+setupInput('be.loan.monthly',b.loan.monthly,{num:1}).replace('<input','<input id="s-lm"')+'</div>'+
     '<div class="fld"><label for="s-lb">Loan balance (R)</label>'+setupInput('be.loan.balance',b.loan.balance,{num:1}).replace('<input','<input id="s-lb"')+'</div>'+
     '<div class="fld"><label for="s-la">Balance is after month</label><input id="s-la" class="cell-in" type="month" data-sp="be.loan.asOf" value="'+esc(b.loan.asOf)+'"></div>'+
-    '<div class="fld wide"><label style="display:flex;gap:10px;align-items:center;text-transform:none;letter-spacing:0;font-size:14px;color:var(--text)"><input type="checkbox" data-sp="tax.vaSetAside" '+(st.tax.vaSetAside?'checked':'')+'> Set tax aside on Virgin Active income</label><span class="note">Virgin Active does not take tax off. This estimates the extra SARS tax on top of your Be Active salary using the 2026/27 tables, and takes it off your take-home. It is an estimate, not tax advice.</span></div>'+
+    '<div class="fld wide"><label style="display:flex;gap:10px;align-items:center;text-transform:none;letter-spacing:0;font-size:14px;color:var(--text)"><input type="checkbox" data-sp="tax.vaSetAside" '+(st.tax.vaSetAside?'checked':'')+'> Set tax aside on Virgin Active income</label><span class="note">Virgin Active does not take tax off. This estimates the extra SARS tax on top of your B-Active salary using the 2026/27 tables, and takes it off your take-home. It is an estimate, not tax advice.</span></div>'+
     '</div></div>';
   var rec='<div class="card"><h2>Monthly bills <small>Added to every month</small></h2>'+
     (st.recurring.length?st.recurring.map(function(r){var base='recurring#'+r.id,arm=ui.armed==='r:'+r.id;return '<div class="rec-row">'+setupInput(base+'.label',r.label,{label:'Name'})+setupInput(base+'.category',r.category,{label:'Category'})+setupInput(base+'.amount',r.amount,{num:1,label:'Amount',ph:'R'})+'<input class="cell-in" type="month" data-sp="'+base+'.from" value="'+esc(r.from)+'" aria-label="From month"><input class="cell-in" type="month" data-sp="'+base+'.until" value="'+esc(r.until||'')+'" aria-label="Until month"><button class="btn small '+(arm?'danger':'ghost')+'" data-act="rec-del" data-id="'+r.id+'">'+(arm?'Sure?':'Remove')+'</button></div>'}).join(''):'<div class="empty">No monthly bills yet.</div>')+
@@ -732,7 +732,7 @@ function viewVoice(){
 /* ============================================================== render */
 var raf=0;
 function render(){if(!raf)raf=requestAnimationFrame(function(){raf=0;doRender()})}
-var NAV=[['overview','Overview'],['virgin-active','Virgin Active'],['be-active','Be Active'],['money','Money'],['setup','Setup']];
+var NAV=[['overview','Overview'],['virgin-active','Virgin Active'],['be-active','B-Active'],['money','Money'],['setup','Setup']];
 function doRender(){
   var app=document.getElementById('app');if(!app)return;
   var ae=document.activeElement,fid=ae&&ae.id,sel=null;
