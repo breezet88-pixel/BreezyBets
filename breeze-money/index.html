@@ -1,4 +1,4 @@
-<title>Breeze Money</title>
+<title>ApexBucks</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="theme-color" content="#0c0c0e">
 <link rel="icon" type="image/jpeg" href="logo.jpg">
@@ -32,7 +32,8 @@ a{color:inherit}
 .top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:14px}
 .brand{display:flex;align-items:center;gap:12px;font-family:var(--f-display);font-weight:700;font-size:28px;letter-spacing:.06em;text-transform:uppercase;line-height:1}
 .brand .mark{width:60px;height:60px;flex:none;border-radius:12px;background:#fff;padding:4px;box-sizing:border-box;object-fit:cover;object-position:50% 30%;display:block}
-.bname{display:flex;flex-direction:column;gap:5px}
+.bname{display:flex;flex-direction:column;gap:5px;text-transform:none;font-size:32px;letter-spacing:.03em}
+.bname small{text-transform:uppercase}
 .brand small{font:500 12px var(--f-body);letter-spacing:.08em;color:var(--muted)}
 .pill{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:4px 11px;white-space:nowrap}
 .pill::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--ok)}
@@ -861,7 +862,7 @@ function doRender(){
   var back=ui.view==='overview'?'':'<a class="back" href="#overview">&#8249; Overview</a>';
   var lr=ui.lastRefresh;
   var foot='<footer class="foot"><button class="btn" data-act="refresh"'+(ui.refreshing?' disabled':'')+'>'+REFRESH.replace('<svg ','<svg '+(ui.refreshing?'class="spin" ':''))+(ui.refreshing?'Refreshing':'Refresh')+'</button><span class="note">'+(lr?'Last refreshed '+pad(lr.getHours())+':'+pad(lr.getMinutes()):'Use this after adding or removing anything')+'</span></footer>';
-  app.innerHTML='<header class="top"><a class="brand" href="#overview" aria-label="Breeze Money, home"><img class="mark" src="logo.jpg" alt="Apex by Breeze logo" width="60" height="60"><span class="bname">Breeze Money<small>Apex by Breeze</small></span></a><span id="sync" class="pill">Saved</span></header>'+back+'<main>'+body+'</main>'+foot+
+  app.innerHTML='<header class="top"><a class="brand" href="#overview" aria-label="ApexBucks, home"><img class="mark" src="logo.jpg" alt="Apex by Breeze logo" width="60" height="60"><span class="bname">ApexBucks<small>Apex by Breeze</small></span></a><span id="sync" class="pill">Saved</span></header>'+back+'<main>'+body+'</main>'+foot+
     '<button class="fab" data-act="v-open">'+MIC+'Quick add</button>'+viewVoice();
   setStatus();
   if(fid){var el=document.getElementById(fid);if(el){el.focus({preventScroll:true});if(sel&&el.setSelectionRange){try{el.setSelectionRange(sel[0],sel[1])}catch(e){}}}}
@@ -1045,8 +1046,8 @@ document.addEventListener('click',function(e){
     case 'leave-del':S().leave.splice(+t.getAttribute('data-i'),1);markDirty('settings/main');render();break;
     case 'cut-del':delete S().cutoffs[t.getAttribute('data-k')];markDirty('settings/main');render();break;
     case 'hol-del':S().extraHolidays.splice(+t.getAttribute('data-i'),1);markDirty('settings/main');render();break;
-    case 'export-csv':save('breeze-money.csv',exportCsv());break;
-    case 'export-json':save('breeze-money-backup.json',JSON.stringify(state,null,1));break;
+    case 'export-csv':save('apexbucks.csv',exportCsv());break;
+    case 'export-json':save('apexbucks-backup.json',JSON.stringify(state,null,1));break;
     case 'v-open':ui.voice.open=true;ui.voice.error='';render();break;
     case 'v-close':ui.voice.open=false;stopDict();render();break;
     case 'v-mic':toggleDict();break;
