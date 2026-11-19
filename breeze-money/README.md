@@ -17,6 +17,7 @@ node breeze-money/build.mjs      # writes breeze-money/dist/
 Upload the `dist` folder to any static HTTPS host (GitHub Pages, Netlify, Cloudflare Pages).
 Open the site on a phone and choose Install app or Add to Home Screen. It then works offline.
 
+- Tax is worked out from the payslip (PAYE and UIF divided by gross pay), never from built-in tax tables.
 - Data is saved on the device only (browser storage). Use Setup, Your data, Download full backup now and then.
 - To move numbers across, download the full backup from the old version and use Restore from backup
   (the Welcome card on the first screen, or Setup, Your data).
