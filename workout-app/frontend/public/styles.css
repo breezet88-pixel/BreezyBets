@@ -56,3 +56,18 @@ label{display:block;font-weight:600;font-size:.9rem;margin:0 0 4px}
 .thumb{max-width:220px;border-radius:10px;border:1px solid var(--line);display:block;margin:8px 0}
 .err{color:var(--danger);font-weight:600}
 @media print{.top,.banner,.actions,.back{display:none}body{background:#fff;color:#000}.ex{break-inside:avoid;border-color:#ccc}}
+/* v2 additions */
+.eyebrow{margin:0;color:var(--accent);font-weight:700;font-size:.85rem;text-transform:uppercase;letter-spacing:.04em}
+.hero{width:100%;max-height:360px;object-fit:cover;border-radius:14px;margin:10px 0;background:#fff}
+.note{font-size:.9rem}
+.tabs{flex-wrap:wrap}
+.stars{display:flex;gap:2px;margin:6px 0}
+.star{background:none;border:0;font-size:1.8rem;line-height:1;color:var(--accent);cursor:pointer;padding:2px 4px;min-height:44px;min-width:36px}
+.stars-static{color:var(--accent);letter-spacing:2px}
+.fb-list{list-style:none;padding:0;margin:14px 0 0;display:grid;gap:10px}
+.fb-list li{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.fb-list p{margin:4px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.reviews{margin-top:24px}
+.f{margin-bottom:12px}
+select{font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%;min-height:44px}
+.list-item p{margin:4px 0 0;overflow-wrap:anywhere}

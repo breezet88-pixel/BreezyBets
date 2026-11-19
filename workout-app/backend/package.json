@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Read-only workout library PWA with a password-protected admin. Zero dependencies.",
+  "description": "FitLibrary API: JSON + image back end. Zero dependencies.",
   "engines": { "node": ">=22.13" },
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning server/start.js",

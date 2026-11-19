@@ -1,53 +1,65 @@
 # FitLibrary
 
-A workout library your members can **view and download but not change**, and an admin page where **only you** add workouts and exercise pictures. It is a Progressive Web App (PWA): one codebase that installs like a normal app on iPhone, iPad, Android, Windows, Mac and Chromebook.
+A workout app with a **separate back end and front end**.
 
-Plain Node (>= 22.13), **zero npm dependencies**, SQLite for data, images stored as files.
+| Who | Can |
+|---|---|
+| **Anyone** | View published workouts, today's workout of the day, and reviews |
+| **Customer** (free account) | Everything above, plus **add comments and reviews** and **download today's workout of the day** |
+| **You (coach/admin)** | **Add, edit and remove everything**: workouts, exercises, pictures, the workout-of-the-day schedule, comments/reviews, customers |
 
-## Run it
+Customers can never edit or delete anything (not even their own posts). The back end enforces this on every request; the front end only displays.
 
 ```
-cd workout-app
-ADMIN_PASSWORD='choose-a-long-password' npm start
+workout-app/
+  backend/    API only (JSON + uploaded pictures). Node, SQLite, no dependencies.
+  frontend/   The website/app (static files, installable PWA). No build step, no dependencies.
+  docs/       image-prompts.md: which image tool to use and how to prompt it
 ```
 
-- Members: http://localhost:3100
-- You (admin): http://localhost:3100/admin
+Needs Node >= 22.13. Run the two parts in two terminals:
 
-If `ADMIN_PASSWORD` is not set, a temporary one is printed at start (development only). In production, with no password the admin area is switched off.
+```
+# 1. back end  (http://localhost:3100)
+cd backend
+ADMIN_EMAIL=you@example.com ADMIN_PASSWORD='a-long-password' npm start
 
-`npm test` runs the API tests (about 1 second).
+# 2. front end (http://localhost:8080)
+cd frontend
+npm start
+```
+
+- Customers: http://localhost:8080
+- You: http://localhost:8080/admin, signed in with `ADMIN_EMAIL` / `ADMIN_PASSWORD`
+
+If you don't set them, development mode prints a temporary admin login at start. In production (`NODE_ENV=production`) there is no admin until both are set. Changing `ADMIN_PASSWORD` and restarting changes your password. `npm test` in each folder runs its tests.
+
+## Back end (`backend/`)
 
 | Env var | Default | Purpose |
 |---|---|---|
-| `ADMIN_PASSWORD` | none | Admin sign-in. Required in production. |
-| `SESSION_SECRET` | random each start | Signs the admin cookie. Set it so sign-ins survive restarts. |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | none | Your one admin account |
+| `CORS_ORIGINS` | `http://localhost:8080` | Comma-separated website addresses allowed to call the API, e.g. `https://app.example.com` |
 | `PORT` | 3100 | |
-| `DB_PATH` | `./data/fitlibrary.db` | SQLite file |
-| `UPLOAD_DIR` | `./data/uploads` | Exercise images |
-| `COOKIE_SECURE` | false | Set `true` behind HTTPS |
-| `TRUST_PROXY` | false | Set `true` behind a proxy so login rate-limiting sees real client IPs |
+| `DB_PATH` / `UPLOAD_DIR` | `./data/...` | SQLite file and pictures. **Back up `data/`**, and keep it on a persistent disk. |
+| `TIMEZONE` | `Africa/Johannesburg` | Decides when "today" starts for the workout of the day |
+| `TRUST_PROXY` | false | `true` behind a proxy so rate limits see real client IPs |
 
-`data/` holds everything you create: **back it up**, and put it on a persistent disk or volume when you host.
+Sign-in uses a bearer token (no cookies), so the two parts can live on different domains. Passwords are scrypt-hashed, tokens are stored only as hashes, login and sign-up are rate-limited, customers are limited to 10 posts an hour, and uploads are checked by their real file bytes. Blocking a customer ends their session immediately; deleting one removes their reviews. Pictures you stop using are deleted from disk.
 
-## How it works
+## Front end (`frontend/`)
 
-- **Admin** (`/admin`): create a workout, add exercises (name, muscles, equipment, sets, reps, rest, form cues), upload a picture for each, tick *Published* when ready. Drafts are invisible to members. Each exercise has a **✨ Create image prompt** button, see [docs/image-prompts.md](docs/image-prompts.md).
-- **Members** (`/`): browse, search and filter workouts. Two ways to keep one:
-  - **Save to this device**: works offline inside the app.
-  - **Download file**: a single self-contained `.html` file with the pictures embedded. Opens on any device, and prints to PDF.
-- Members have no way to write anything: the public API is `GET` only and every admin route needs your signed cookie.
-- Security: admin cookie is HttpOnly + SameSite=Strict + HMAC-signed, login is rate-limited, uploads are checked by their real file bytes, strict CSP.
+Static files in `public/`. It finds the API from `API_URL` (used by `npm start`) or, on a static host, from `public/config.js`. `public/_headers` has a ready security-header template for Netlify / Cloudflare Pages.
 
-## Getting it onto many devices
+- **Customers** install it like an app: Android/Chrome/Edge/desktop via the *Install app* button, iPhone/iPad via Safari → Share → Add to Home Screen. Today's workout can be saved for offline use or downloaded as one self-contained file (pictures included, prints to PDF).
+- **You** use `/admin`: Workouts (with a **✨ Create image prompt** button on every exercise, see [docs/image-prompts.md](docs/image-prompts.md)), Workout of the day (schedule by date), Reviews (delete any), Customers (block / delete).
 
-1. **Host it** on any HTTPS host that runs Node with a persistent disk (Fly.io, Railway, Render, a VPS). The root of this repo already has a working Fly.io setup for the betting demo you can copy; this app needs only `server/`, `public/`, `package.json` and a volume at `/data`.
-2. **Install, no app store needed.** Members open your web address and:
-   - Android / Chrome / Edge / Windows / Mac: tap **Install app** (button in the header), or the browser's install icon.
-   - iPhone / iPad: Safari → Share → **Add to Home Screen**.
-3. **Want to be in the App Store / Google Play?** Wrap this same site with [Capacitor](https://capacitorjs.com) (free) and submit the result. Apple requires a paid developer account (US$99/year), Google a one-off US$25. Do this later, only if you need the store listing.
+## Hosting
 
-## Not included (decide before launch)
+Host the back end anywhere that runs Node with a persistent disk (Fly.io, Railway, Render, a VPS) behind HTTPS, then host `frontend/public` on any static host (Netlify, Cloudflare Pages, GitHub Pages) or with `npm start`. Set `CORS_ORIGINS` on the back end to the front end's address, and set `API_URL` (or edit `public/config.js` and `_headers`) to the back end's address.
 
-- Member accounts / payments. Right now anyone with the link can view. If the workouts are paid, add sign-in and a payment provider before hosting publicly; ask and we can build it.
-- Image moderation: you upload everything yourself, so there is none.
+## Before you launch
+
+- **Privacy (POPIA):** you now collect customers' names and emails. Publish a short privacy notice and a way to request deletion (you can already delete accounts from the Customers tab).
+- **Emails are not verified** and there is no password reset yet. Ask if you want either (needs an email-sending service).
+- **Downloads are limited to the workout of the day** by design. Anyone can still *view* every workout, and the day's file is available to every signed-in customer.

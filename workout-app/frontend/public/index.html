@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>FitLibrary</title>
-  <meta name="description" content="Browse and download workouts with step-by-step exercise pictures.">
+  <meta name="description" content="Today's workout, step-by-step exercise pictures, and reviews from other members.">
   <meta name="theme-color" content="#0f766e">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
@@ -13,13 +13,15 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="FitLibrary">
   <link rel="stylesheet" href="/styles.css">
+  <script src="/config.js"></script>
 </head>
 <body>
   <header class="top">
     <a class="brand" href="#/"><img src="/icon.svg" alt="" width="28" height="28"><span>FitLibrary</span></a>
     <nav class="tabs" aria-label="Main">
-      <a href="#/" id="tab-all">All workouts</a>
-      <a href="#/saved" id="tab-saved">Saved</a>
+      <a href="#/" id="tab-today">Today</a>
+      <a href="#/workouts" id="tab-workouts">Workouts</a>
+      <a href="#/account" id="tab-account">Sign in</a>
     </nav>
     <button id="install" class="btn small" hidden>Install app</button>
   </header>

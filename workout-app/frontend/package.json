@@ -1,0 +1,12 @@
+{
+  "name": "fitlibrary-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "FitLibrary web app (static files). Talks to the API at API_URL. Zero dependencies.",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node serve.js",
+    "test": "node --test test/*.test.js"
+  }
+}
