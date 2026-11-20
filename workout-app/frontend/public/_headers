@@ -1,7 +1,0 @@
-# For Netlify / Cloudflare Pages. Replace https://api.example.com with your API address.
-/*
-  Content-Security-Policy: default-src 'self'; img-src 'self' data: blob: https://api.example.com; style-src 'self'; script-src 'self'; connect-src 'self' https://api.example.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
-  X-Content-Type-Options: nosniff
-  Referrer-Policy: no-referrer
-/sw.js
-  Cache-Control: no-cache
