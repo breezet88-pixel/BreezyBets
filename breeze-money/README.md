@@ -35,7 +35,8 @@ Open the site on a phone and choose Install app or Add to Home Screen. It then w
 - To move numbers across, download the full backup from the old version and use Restore from backup
   (the Welcome card on the first screen, or Setup, Your data).
 - Quick add uses the built-in reader and the phone's speech recognition where the browser has it.
-- Photos: **Take a photo** or **Upload a photo** for a receipt (split by type of spend) or a payslip (fills in the
+- Photos: **Take a photo** or **Upload a photo** for a till receipt, a **single-transaction screenshot** from a banking app
+  (one amount, merchant and date are pulled out; the running/available balance is ignored), or a payslip (fills in the
   B-Active payslip form). In the Claude version Claude reads the photo. In the phone app the photo is read on the device
   with Tesseract.js (Apache-2.0), loaded from the jsDelivr CDN on first use (about 7 MB) and then cached for offline use.
   Everything read is shown for checking before it is saved, and photos are never stored.
